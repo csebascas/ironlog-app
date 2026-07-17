@@ -1,0 +1,1680 @@
+<meta charset="UTF-8" />
+<title>IRONLOG — Physique &amp; Training Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#131110" />
+<style>
+  :root{
+    --bg:#EAE7E1; --surface:#F5F3EF; --surface-2:#FFFFFF; --border:#D6D1C7;
+    --text:#201D19; --text-dim:#6B655C; --text-faint:#95897C;
+    --accent:#A8431F; --accent-strong:#8A3417; --accent-soft:#A8431F1a;
+    --good:#3E6B47; --good-soft:#3E6B4720;
+    --warn:#96701F; --warn-soft:#96701F20;
+    --info:#3E5C6B; --info-soft:#3E5C6B20;
+    --danger:#9C3B3B;
+    --radius:7px;
+    --shadow:0 1px 2px rgba(20,16,10,.06);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#131110; --surface:#1C1917; --surface-2:#221E1A; --border:#332E27;
+      --text:#EDE7DD; --text-dim:#9C948A; --text-faint:#6B655C;
+      --accent:#D3673D; --accent-strong:#E8825A; --accent-soft:#D3673D22;
+      --good:#6FA378; --good-soft:#6FA37822;
+      --warn:#D6AC55; --warn-soft:#D6AC5522;
+      --info:#7FA0B0; --info-soft:#7FA0B022;
+      --danger:#C96A6A;
+      --shadow:0 1px 3px rgba(0,0,0,.35);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#131110; --surface:#1C1917; --surface-2:#221E1A; --border:#332E27;
+    --text:#EDE7DD; --text-dim:#9C948A; --text-faint:#6B655C;
+    --accent:#D3673D; --accent-strong:#E8825A; --accent-soft:#D3673D22;
+    --good:#6FA378; --good-soft:#6FA37822;
+    --warn:#D6AC55; --warn-soft:#D6AC5522;
+    --info:#7FA0B0; --info-soft:#7FA0B022;
+    --danger:#C96A6A;
+    --shadow:0 1px 3px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+  :root[data-theme="light"]{
+    --bg:#EAE7E1; --surface:#F5F3EF; --surface-2:#FFFFFF; --border:#D6D1C7;
+    --text:#201D19; --text-dim:#6B655C; --text-faint:#95897C;
+    --accent:#A8431F; --accent-strong:#8A3417; --accent-soft:#A8431F1a;
+    --good:#3E6B47; --good-soft:#3E6B4720;
+    --warn:#96701F; --warn-soft:#96701F20;
+    --info:#3E5C6B; --info-soft:#3E5C6B20;
+    --danger:#9C3B3B;
+    --shadow:0 1px 2px rgba(20,16,10,.06);
+    color-scheme: light;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+  .num{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-variant-numeric:tabular-nums;}
+  h1,h2,h3{text-wrap:balance; margin:0; font-weight:800;}
+  .eyebrow{
+    text-transform:uppercase; letter-spacing:.14em; font-size:11px;
+    color:var(--text-faint); font-weight:700;
+  }
+  button{font-family:inherit;}
+  input,select,textarea{font-family:inherit; color:var(--text); background:var(--surface-2); border:1px solid var(--border); border-radius:5px;}
+  ::selection{background:var(--accent-soft);}
+  a{color:var(--accent-strong);}
+
+  #app{max-width:560px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; position:relative;}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    position:sticky; top:0; z-index:20;
+    background:var(--bg); border-bottom:1px solid var(--border);
+    padding:calc(env(safe-area-inset-top) + 14px) 16px 12px;
+  }
+  .brand{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;}
+  .brand-name{
+    font-size:19px; font-weight:800; letter-spacing:-.01em; text-transform:uppercase;
+    display:flex; align-items:center; gap:8px;
+  }
+  .brand-name .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;}
+  .brand-tag{font-size:10.5px; color:var(--text-faint); letter-spacing:.12em; text-transform:uppercase;}
+
+  .stat-rack{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
+  .stat-cell{background:var(--surface); padding:9px 6px; text-align:center;}
+  .stat-cell .v{font-size:16px; font-weight:700;}
+  .stat-cell .l{font-size:9.5px; text-transform:uppercase; letter-spacing:.09em; color:var(--text-faint); margin-top:2px;}
+  .phase-pill{
+    display:inline-flex; align-items:center; gap:5px; padding:2px 8px 2px 6px;
+    border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+  }
+  .phase-pill .sw{width:6px;height:6px;border-radius:50%;}
+  .phase-bulk{background:var(--warn-soft); color:var(--warn);}
+  .phase-cut{background:var(--info-soft); color:var(--info);}
+  .phase-maintain{background:var(--good-soft); color:var(--good);}
+
+  /* ---------- content ---------- */
+  main{flex:1; padding:16px 16px 96px; display:flex; flex-direction:column; gap:18px;}
+  .view{display:none; flex-direction:column; gap:18px; animation:fadein .18s ease;}
+  .view.active{display:flex;}
+  @keyframes fadein{from{opacity:0; transform:translateY(3px);} to{opacity:1; transform:none;}}
+  @media (prefers-reduced-motion: reduce){ .view{animation:none;} }
+
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:7px;}
+  .section-head h2{font-size:13px;}
+  .section-head .hint{font-size:11.5px; color:var(--text-faint);}
+
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px; box-shadow:var(--shadow);
+  }
+  .card + .card{margin-top:0;}
+  .card-title{font-size:12.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-dim); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;}
+
+  .row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .row + .row{margin-top:8px; padding-top:8px; border-top:1px solid var(--border);}
+  .row .k{font-size:13px; color:var(--text-dim);}
+  .row .v{font-size:14px; font-weight:700;}
+
+  .btn{
+    appearance:none; border:1px solid var(--border); background:var(--surface-2); color:var(--text);
+    padding:10px 14px; border-radius:6px; font-size:13.5px; font-weight:700; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .btn:active{transform:scale(.98);}
+  .btn:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  .btn-accent{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .btn-block{width:100%;}
+  .btn-ghost{background:transparent;}
+  .btn-sm{padding:6px 10px; font-size:12px;}
+  .btn-row{display:flex; gap:8px;}
+
+  .field{display:flex; flex-direction:column; gap:5px;}
+  .field label{font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-faint); font-weight:700;}
+  .field input, .field select{padding:10px 10px; font-size:14.5px;}
+  .field-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+
+  .empty{text-align:center; padding:26px 10px; color:var(--text-faint); font-size:13px;}
+
+  /* dashboard weight chart */
+  .chart-wrap{position:relative;}
+  svg.chart{width:100%; height:120px; display:block;}
+  .chart-empty{text-align:center; color:var(--text-faint); font-size:12.5px; padding:30px 0;}
+
+  /* segmented control */
+  .segmented{display:flex; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; padding:2px;}
+  .segmented button{flex:1; border:none; background:transparent; padding:8px 6px; font-size:12.5px; font-weight:700; border-radius:4px; color:var(--text-dim); cursor:pointer;}
+  .segmented button.active{background:var(--accent); color:#fff;}
+
+  /* day list (train tab) */
+  .day-card{display:flex; align-items:center; justify-content:space-between; padding:13px 14px; cursor:pointer;}
+  .day-card .d-label{font-size:14.5px; font-weight:800; text-transform:uppercase; letter-spacing:.02em;}
+  .day-card .d-sub{font-size:11.5px; color:var(--text-faint); margin-top:2px;}
+  .day-card .d-meta{font-size:11px; color:var(--text-faint); text-align:right;}
+  .chev{color:var(--text-faint); font-size:16px;}
+
+  .exercise-row{padding:11px 0; border-top:1px solid var(--border);}
+  .exercise-row:first-child{border-top:none; padding-top:0;}
+  .ex-head{display:flex; justify-content:space-between; align-items:baseline;}
+  .ex-name{font-size:13.5px; font-weight:700;}
+  .ex-range{font-size:11px; color:var(--text-faint);}
+  .ex-last{font-size:11px; color:var(--text-faint); margin-top:2px;}
+  .set-line{display:flex; align-items:center; gap:8px; margin-top:7px;}
+  .set-line input{width:64px; padding:7px 8px; font-size:13px; text-align:center;}
+  .set-line .x{color:var(--text-faint); font-size:12px;}
+  .set-line .rm{background:none;border:none;color:var(--text-faint);font-size:15px;cursor:pointer;padding:2px 6px;}
+  .add-set{margin-top:8px;}
+
+  /* photos */
+  .photo-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:6px;}
+  .photo-thumb{position:relative; aspect-ratio:3/4; border-radius:5px; overflow:hidden; border:1px solid var(--border); cursor:pointer;}
+  .photo-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+  .photo-thumb .tag{position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.55); color:#fff; font-size:9px; text-transform:uppercase; letter-spacing:.06em; padding:3px 5px; text-align:center;}
+  .photo-thumb .date{position:absolute; top:4px; left:4px; background:rgba(0,0,0,.5); color:#fff; font-size:8.5px; padding:2px 5px; border-radius:3px;}
+  .photo-thumb.is-goal{border-color:var(--accent);}
+  .photo-thumb .goal-star{position:absolute; top:4px; right:4px; color:var(--accent-strong); font-size:11px; text-shadow:0 0 3px rgba(0,0,0,.6);}
+
+  .compare-wrap{display:grid; grid-template-columns:1fr 1fr; gap:6px;}
+  .compare-slot{aspect-ratio:3/4; border-radius:6px; border:1px solid var(--border); background:var(--surface-2); display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative;}
+  .compare-slot img{width:100%; height:100%; object-fit:cover;}
+  .compare-slot .ph{font-size:11px; color:var(--text-faint); text-align:center; padding:8px;}
+  .compare-label{font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-faint); text-align:center; margin-top:5px;}
+
+  /* modal */
+  .modal-veil{position:fixed; inset:0; background:rgba(10,8,6,.55); z-index:150; display:none; align-items:flex-end; justify-content:center;}
+  .modal-veil.active{display:flex;}
+  .modal{width:100%; max-width:560px; background:var(--surface); border-top:1px solid var(--border); border-radius:14px 14px 0 0; padding:18px 16px calc(env(safe-area-inset-bottom) + 18px); max-height:88vh; overflow-y:auto;}
+  .modal-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+  .modal-head h3{font-size:15px; text-transform:uppercase; letter-spacing:.03em;}
+  .modal-close{background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer; padding:2px 6px;}
+  .modal-body{display:flex; flex-direction:column; gap:12px;}
+  .modal-full{max-height:none;}
+
+  .photo-viewer img{width:100%; border-radius:8px; display:block;}
+
+  /* nutrition */
+  .macro-bar{display:flex; height:10px; border-radius:5px; overflow:hidden; border:1px solid var(--border);}
+  .macro-bar div{height:100%;}
+  .macro-legend{display:flex; gap:14px; margin-top:8px; flex-wrap:wrap;}
+  .macro-legend .li{display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--text-dim);}
+  .macro-legend .sw{width:8px;height:8px;border-radius:2px;}
+
+  .tip{font-size:13px; line-height:1.55; color:var(--text-dim);}
+  .tip strong{color:var(--text);}
+  ul.plain{margin:0; padding-left:18px; font-size:13px; line-height:1.7; color:var(--text-dim);}
+  ul.plain li strong{color:var(--text);}
+
+  /* food log */
+  .progress-row{display:flex; justify-content:space-between; font-size:11.5px; color:var(--text-dim); margin-bottom:4px;}
+  .progress-bar{height:8px; border-radius:5px; background:var(--surface-2); border:1px solid var(--border); overflow:hidden;}
+  .progress-bar > div{height:100%; background:var(--accent);}
+  .progress-bar.over > div{background:var(--danger);}
+  .food-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-top:1px solid var(--border); gap:8px;}
+  .food-row:first-child{border-top:none;}
+  .food-row .fname{font-size:13px; font-weight:600;}
+  .food-row .fmeta{font-size:11px; color:var(--text-faint); margin-top:1px;}
+  .food-row .fmacro{font-size:11.5px; color:var(--text-dim); white-space:nowrap;}
+  .food-row .rm{background:none; border:none; color:var(--text-faint); font-size:15px; cursor:pointer; padding:2px 4px;}
+  .search-result{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid var(--border); cursor:pointer;}
+  .search-result:first-child{border-top:none;}
+  .search-result:active{opacity:.6;}
+  .search-result .rname{font-size:13.5px; font-weight:600;}
+  .search-result .rmeta{font-size:11px; color:var(--text-faint); margin-top:1px;}
+  .qty-preview{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; text-align:center;}
+  .qty-preview .qp{background:var(--surface-2); border:1px solid var(--border); border-radius:6px; padding:8px 4px;}
+  .qty-preview .qp .v{font-size:14px; font-weight:700;}
+  .qty-preview .qp .l{font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em; margin-top:2px;}
+  .loading-row{text-align:center; padding:16px; color:var(--text-faint); font-size:12.5px;}
+
+  /* bottom nav */
+  nav.tabbar{
+    position:fixed; left:0; right:0; bottom:0; z-index:30;
+    max-width:560px; margin:0 auto;
+    background:var(--surface); border-top:1px solid var(--border);
+    display:flex; padding:6px 4px calc(env(safe-area-inset-bottom) + 6px);
+  }
+  nav.tabbar button{
+    flex:1; background:none; border:none; cursor:pointer; color:var(--text-faint);
+    display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px; border-radius:8px;
+  }
+  nav.tabbar button.active{color:var(--accent);}
+  nav.tabbar svg{width:20px; height:20px;}
+  nav.tabbar span{font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:700;}
+
+  /* onboarding */
+  #onboard{position:fixed; inset:0; background:var(--bg); z-index:100; overflow-y:auto; display:none;}
+  #onboard.active{display:block;}
+  .ob-wrap{max-width:480px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 34px) 22px 40px; display:flex; flex-direction:column; gap:22px;}
+  .ob-head .eyebrow{margin-bottom:8px;}
+  .ob-head h1{font-size:26px; text-transform:uppercase; letter-spacing:-.01em;}
+  .ob-head p{color:var(--text-dim); font-size:13.5px; margin-top:8px; line-height:1.55;}
+  .ob-note{font-size:12px; color:var(--text-faint); line-height:1.55; border-left:2px solid var(--accent); padding-left:10px;}
+
+  .toast{position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:var(--text); color:var(--bg); font-size:12.5px; font-weight:700; padding:9px 16px; border-radius:20px; z-index:80; opacity:0; pointer-events:none; transition:opacity .2s;}
+  .toast.show{opacity:1;}
+
+  .scale-note{font-size:11px; color:var(--text-faint); margin-top:6px;}
+</style>
+
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-name"><span class="dot"></span>IRONLOG</div>
+      <div class="brand-tag" id="dateStamp">—</div>
+    </div>
+    <div class="stat-rack" id="statRack"></div>
+  </header>
+
+  <main>
+    <section class="view active" id="view-dash"></section>
+    <section class="view" id="view-train"></section>
+    <section class="view" id="view-photos"></section>
+    <section class="view" id="view-fuel"></section>
+    <section class="view" id="view-settings"></section>
+  </main>
+
+  <nav class="tabbar" id="tabbar">
+    <button data-tab="dash" class="active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V10M12 19V5M20 19v-6"/></svg>
+      <span>Dash</span>
+    </button>
+    <button data-tab="train">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h2m2-5v10M9 12h6M15 7v10m2-5h2M6.5 9v6M17.5 9v6"/></svg>
+      <span>Train</span>
+    </button>
+    <button data-tab="photos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M8 6l1.5-2h5L16 6"/><circle cx="12" cy="13" r="3.2"/></svg>
+      <span>Photos</span>
+    </button>
+    <button data-tab="fuel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 3-2 3-2 6a4 4 0 0 0 8 0c0-1.5-.8-2-1-3.5C11.7 4 10.5 3.3 9.5 2c0 1.8-1 2-2.5 1z"/><path d="M9 13v7a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-7"/></svg>
+      <span>Fuel</span>
+    </button>
+    <button data-tab="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06A2 2 0 1 1 7.04 4.3l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.36.5.6 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Setup</span>
+    </button>
+  </nav>
+</div>
+
+<div id="onboard">
+  <div class="ob-wrap">
+    <div class="ob-head">
+      <div class="eyebrow">Setup — Step <span id="obStepNum">1</span> of 3</div>
+      <h1>Rack your stats</h1>
+      <p>Everything is stored on this device only — no account, no server. Fill this in once so IRONLOG can size your calories and estimate body fat.</p>
+    </div>
+    <div id="obBody"></div>
+    <div class="btn-row">
+      <button class="btn" id="obBack" style="display:none">Back</button>
+      <button class="btn btn-accent btn-block" id="obNext">Continue</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-veil" id="modalVeil"><div class="modal" id="modalRoot"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ============================= DATA LAYER ============================= */
+const LS_KEY = "ironlog_state_v1";
+const DB_NAME = "ironlog_photos_v1";
+
+const SPLIT = [
+  { key:"push", label:"Push", sub:"Chest, Shoulders, Triceps", exercises:[
+    {n:"Overhead Tricep Extension", r:"10–15"},
+    {n:"Lateral Raise", r:"12–20"},
+    {n:"Cable Tricep Pushdown", r:"10–15"},
+    {n:"Seated Shoulder Press", r:"8–12"},
+    {n:"Incline Smith Machine Press", r:"8–10"},
+    {n:"Flat DB Press", r:"8–12"},
+  ]},
+  { key:"pull", label:"Pull", sub:"Back, Rear Delts, Biceps", exercises:[
+    {n:"Preacher Curl", r:"8–12"},
+    {n:"Rear Delt Fly", r:"15–20"},
+    {n:"Reverse Curl", r:"10–15"},
+    {n:"Face Pull", r:"15–20"},
+    {n:"Incline DB Curl", r:"8–12"},
+    {n:"Seated Cable Row", r:"15–20"},
+    {n:"Lat Pulldown (Overhand)", r:"8–12"},
+  ]},
+  { key:"legs", label:"Legs", sub:"Legs + Abs", exercises:[
+    {n:"Romanian Deadlift", r:"8–12"},
+    {n:"Hanging Leg Raise", r:"Failure"},
+    {n:"Standing Calf Raise", r:"8–15"},
+    {n:"Leg Extension", r:"12–15"},
+    {n:"Seated/Lying Leg Curl", r:"10–15"},
+    {n:"Leg Press", r:"10–15"},
+    {n:"Squat", r:"6–10"},
+    {n:"Hip Thrust (optional)", r:"8–12"},
+  ]},
+  { key:"upper", label:"Upper", sub:"Chest, Back, Shoulders", exercises:[
+    {n:"Pull-ups / Lat Pulldown", r:"12–15"},
+    {n:"Lateral Raise", r:"12–20"},
+    {n:"Pec Deck", r:"12–15"},
+    {n:"Face Pull", r:"15–20"},
+    {n:"Seated Cable Row", r:"8–12"},
+    {n:"Incline Barbell Press", r:"6–10"},
+  ]},
+  { key:"arms", label:"Arms", sub:"Arms, Delts, Abs", exercises:[
+    {n:"Lateral Raise", r:"12–20"},
+    {n:"Skull Crushers", r:"8–12"},
+    {n:"Cable Tricep Pushdown", r:"10–15"},
+    {n:"Overhead Tricep Extension", r:"10–15"},
+    {n:"Cable Curl (Facing Machine)", r:"8–12"},
+    {n:"Incline DB Curl", r:"10–15"},
+    {n:"Cable Crunch", r:"12–15"},
+    {n:"Side Plank", r:"30–45s"},
+  ]},
+];
+
+const ACTIVITY_LEVELS = [
+  { key:"sedentary", label:"Desk job, little walking", mult:1.2 },
+  { key:"light", label:"On feet some / light activity", mult:1.375 },
+  { key:"moderate", label:"On feet a lot / active daily", mult:1.55 },
+  { key:"very", label:"Physically demanding job/sport", mult:1.725 },
+];
+
+function defaultState(){
+  return {
+    profile: null, // {heightIn, age, sex, activity, neckIn, waistIn, goalWeightLb, phase, phaseStart, cutRatePct, bulkRateLb}
+    weightLog: [],   // {date, lb}
+    measureLog: [],  // {date, waistIn, neckIn, chestIn, armIn}
+    workoutLog: [],  // {date, dayKey, exercises:[{n, sets:[{w,r}]}]}
+    myFoods: [],     // {id, name, brand, cals100, protein100, carbs100, fat100, defaultGrams, isCustom, lastUsed}
+    foodLog: [],     // {id, date, foodId, name, grams, cals, protein, carbs, fat}
+    theme: "auto"
+  };
+}
+
+let STATE = loadState();
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    return Object.assign(defaultState(), parsed);
+  }catch(e){ return defaultState(); }
+}
+function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(STATE)); }
+
+/* ---- IndexedDB for photos (can be large, localStorage is too small) ---- */
+let dbPromise = null;
+function getDB(){
+  if(dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve,reject)=>{
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = ()=>{
+      const db = req.result;
+      if(!db.objectStoreNames.contains("photos")){
+        const store = db.createObjectStore("photos", {keyPath:"id"});
+        store.createIndex("date", "date");
+      }
+    };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+  return dbPromise;
+}
+async function addPhoto(photo){
+  const db = await getDB();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction("photos","readwrite");
+    tx.objectStore("photos").put(photo);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function deletePhoto(id){
+  const db = await getDB();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction("photos","readwrite");
+    tx.objectStore("photos").delete(id);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function getAllPhotos(){
+  const db = await getDB();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction("photos","readonly");
+    const req = tx.objectStore("photos").getAll();
+    req.onsuccess = ()=>resolve((req.result||[]).sort((a,b)=> b.date.localeCompare(a.date)));
+    req.onerror = ()=>reject(req.error);
+  });
+}
+
+/* ============================= HELPERS ============================= */
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function fmtDate(s){
+  const [y,m,d] = s.split("-").map(Number);
+  const dt = new Date(y, m-1, d);
+  return dt.toLocaleDateString(undefined,{month:"short", day:"numeric"});
+}
+function fmtDateLong(s){
+  const [y,m,d] = s.split("-").map(Number);
+  const dt = new Date(y, m-1, d);
+  return dt.toLocaleDateString(undefined,{month:"short", day:"numeric", year:"numeric"});
+}
+function daysBetween(a,b){
+  const [ay,am,ad]=a.split("-").map(Number), [by,bm,bd]=b.split("-").map(Number);
+  return Math.round((new Date(by,bm-1,bd) - new Date(ay,am-1,ad))/86400000);
+}
+function addDaysStr(s, n){
+  const [y,m,d]=s.split("-").map(Number);
+  const dt = new Date(y,m-1,d); dt.setDate(dt.getDate()+n);
+  return dt.toISOString().slice(0,10);
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>t.classList.remove("show"), 1800);
+}
+function openModal(html, opts){
+  document.getElementById("modalRoot").innerHTML = html;
+  document.getElementById("modalRoot").classList.toggle("modal-full", !!(opts&&opts.full));
+  document.getElementById("modalVeil").classList.add("active");
+}
+function closeModal(){ document.getElementById("modalVeil").classList.remove("active"); }
+document.getElementById("modalVeil").addEventListener("click", e=>{
+  if(e.target.id==="modalVeil") closeModal();
+});
+
+/* ============================= CALCULATIONS ============================= */
+function latestWeight(){
+  if(!STATE.weightLog.length) return STATE.profile ? STATE.profile.startWeightLb : null;
+  return STATE.weightLog[STATE.weightLog.length-1].lb;
+}
+function bmr(weightLb, heightIn, age){
+  const kg = weightLb*0.453592, cm = heightIn*2.54;
+  return 10*kg + 6.25*cm - 5*age + 5; // Mifflin-St Jeor, male
+}
+function tdee(){
+  const p = STATE.profile; if(!p) return null;
+  const w = latestWeight() || p.startWeightLb;
+  const mult = (ACTIVITY_LEVELS.find(a=>a.key===p.activity)||ACTIVITY_LEVELS[1]).mult;
+  return Math.round(bmr(w, p.heightIn, p.age) * mult);
+}
+function navyBF(waistIn, neckIn, heightIn){
+  if(!waistIn || !neckIn || waistIn<=neckIn) return null;
+  const val = 86.010*Math.log10(waistIn-neckIn) - 70.041*Math.log10(heightIn) + 36.76;
+  return Math.max(3, Math.min(45, val));
+}
+function currentBF(){
+  const p = STATE.profile; if(!p) return null;
+  const m = STATE.measureLog[STATE.measureLog.length-1];
+  const waist = m ? m.waistIn : p.waistIn;
+  const neck = m ? m.neckIn : p.neckIn;
+  return navyBF(waist, neck, p.heightIn);
+}
+function recommendedPhase(bf){
+  if(bf==null) return "bulk";
+  if(bf < 13) return "bulk";
+  if(bf < 17) return "maintain";
+  return "cut";
+}
+function macroPlan(phase){
+  const p = STATE.profile; if(!p) return null;
+  const w = latestWeight() || p.startWeightLb;
+  const base = tdee();
+  let cals, proteinPerLb, fatPct, rateLabel;
+  if(phase==="bulk"){
+    cals = base + 275;
+    proteinPerLb = 1.0; fatPct = 0.25;
+    rateLabel = "≈ +0.25–0.4 lb / week";
+  } else if(phase==="cut"){
+    cals = Math.round(base - base*0.22);
+    proteinPerLb = 1.1; fatPct = 0.28;
+    rateLabel = "≈ –0.7–1.0 lb / week";
+  } else {
+    cals = base;
+    proteinPerLb = 1.0; fatPct = 0.28;
+    rateLabel = "recomposition — weight roughly flat";
+  }
+  const protein = Math.round(w*proteinPerLb);
+  const fat = Math.round((cals*fatPct)/9);
+  const carbCals = cals - protein*4 - fat*9;
+  const carbs = Math.max(0, Math.round(carbCals/4));
+  return {cals, protein, fat, carbs, rateLabel, base};
+}
+function phaseTimelineWeeks(phase){
+  const p = STATE.profile; if(!p || !p.goalWeightLb) return null;
+  const w = latestWeight() || p.startWeightLb;
+  const diff = p.goalWeightLb - w;
+  if(phase==="bulk"){
+    if(diff<=0) return 0;
+    return Math.ceil(diff/0.32);
+  }
+  if(phase==="cut"){
+    if(diff>=0) return 0;
+    return Math.ceil(Math.abs(diff)/(w*0.008));
+  }
+  return null;
+}
+
+/* ---- goal weight from a target look, using FFMI (a standard muscularity-vs-height
+   measure) crossed with a target leanness — not photo pixel analysis, but the same
+   math coaches use to reverse-engineer "what should I weigh to look like that" ---- */
+const MUSCLE_LEVELS = [
+  {key:"lean", ffmi:19.0, label:"Lean athletic", desc:"Fit, toned, not overtly muscular — runner or swimmer build"},
+  {key:"athletic", ffmi:20.5, label:"Athletic (your reference photos)", desc:"Visible muscle and shape without bulk — soccer/basketball athlete build"},
+  {key:"built", ffmi:22.0, label:"Built", desc:"Noticeably muscular, fills out a t-shirt — several years of serious training"},
+  {key:"muscular", ffmi:23.5, label:"Very muscular", desc:"Near the top of what's achievable without gear — takes years"},
+];
+const LEAN_LEVELS = [
+  {key:"lean", bf:15, label:"Lean", desc:"Flat stomach, faint ab outline"},
+  {key:"defined", bf:11, label:"Defined", desc:"Visible abs most of the day — matches your reference photos"},
+  {key:"shredded", bf:7, label:"Shredded", desc:"Fully visible abs and veins — contest-prep territory, hard to hold"},
+];
+function goalWeightFromLook(muscleKey, leanKey, heightIn){
+  const m = MUSCLE_LEVELS.find(x=>x.key===muscleKey) || MUSCLE_LEVELS[1];
+  const l = LEAN_LEVELS.find(x=>x.key===leanKey) || LEAN_LEVELS[1];
+  const heightM = heightIn*0.0254;
+  const lbmKg = (m.ffmi - 6.1*(1.8-heightM)) * heightM*heightM;
+  const weightKg = lbmKg / (1-l.bf/100);
+  return Math.round(weightKg/0.453592);
+}
+
+/* ============================= RENDER: SHELL ============================= */
+function setTheme(t){
+  STATE.theme = t;
+  const root = document.documentElement;
+  if(t==="dark") root.setAttribute("data-theme","dark");
+  else if(t==="light") root.setAttribute("data-theme","light");
+  else root.removeAttribute("data-theme");
+  saveState();
+}
+
+function renderTopBar(){
+  document.getElementById("dateStamp").textContent = new Date().toLocaleDateString(undefined,{weekday:"short", month:"short", day:"numeric"});
+  const p = STATE.profile;
+  const rack = document.getElementById("statRack");
+  if(!p){ rack.innerHTML = ""; return; }
+  const w = latestWeight();
+  const bf = currentBF();
+  const phase = p.phase;
+  const pillClass = phase==="bulk"?"phase-bulk":phase==="cut"?"phase-cut":"phase-maintain";
+  rack.innerHTML = `
+    <div class="stat-cell"><div class="v num">${w!=null? w.toFixed(1):"—"}</div><div class="l">Weight lb</div></div>
+    <div class="stat-cell"><div class="v num">${bf!=null? bf.toFixed(1)+"%":"—"}</div><div class="l">Est. BF</div></div>
+    <div class="stat-cell"><div class="v num">${p.phaseStart? daysBetween(p.phaseStart, todayStr()) : 0}</div><div class="l">Days in phase</div></div>
+    <div class="stat-cell"><span class="phase-pill ${pillClass}"><span class="sw" style="background:currentColor"></span>${phase}</span></div>
+  `;
+}
+
+/* ============================= RENDER: DASHBOARD ============================= */
+function weightChart(){
+  const log = STATE.weightLog.slice(-30);
+  if(log.length < 2) return `<div class="chart-empty">Log at least two weigh-ins to see your trend line.</div>`;
+  const w = 520, h = 120, pad = 8;
+  const vals = log.map(e=>e.lb);
+  const min = Math.min(...vals)-1, max = Math.max(...vals)+1;
+  const pts = log.map((e,i)=>{
+    const x = pad + (i/(log.length-1))*(w-pad*2);
+    const y = h-pad - ((e.lb-min)/(max-min))*(h-pad*2);
+    return [x,y];
+  });
+  const path = pts.map((pt,i)=> (i===0?"M":"L")+pt[0].toFixed(1)+","+pt[1].toFixed(1)).join(" ");
+  const areaPath = path + ` L${pts[pts.length-1][0].toFixed(1)},${h-pad} L${pts[0][0].toFixed(1)},${h-pad} Z`;
+  const last = pts[pts.length-1];
+  return `
+  <svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="wgrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.28"/>
+        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <line x1="${pad}" y1="${h/2}" x2="${w-pad}" y2="${h/2}" stroke="var(--border)" stroke-width="1" stroke-dasharray="2,3"/>
+    <path d="${areaPath}" fill="url(#wgrad)" stroke="none"/>
+    <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="3.6" fill="var(--accent)"/>
+  </svg>`;
+}
+
+function renderDash(){
+  const p = STATE.profile;
+  const el = document.getElementById("view-dash");
+  if(!p){ el.innerHTML = `<div class="empty">Finish setup to see your dashboard.</div>`; return; }
+  const plan = macroPlan(p.phase);
+  const weeks = phaseTimelineWeeks(p.phase);
+  const el3 = STATE.weightLog.length;
+
+  el.innerHTML = `
+    <div class="section-head"><h2 class="eyebrow">Weight Trend</h2><span class="hint">last 30 entries</span></div>
+    <div class="card">
+      <div class="chart-wrap">${weightChart()}</div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-accent btn-block" id="btnLogWeight">+ Log Weigh-in</button>
+      </div>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Current Phase</h2></div>
+    <div class="card">
+      <div class="row"><span class="k">Phase</span><span class="v" style="text-transform:capitalize">${p.phase}</span></div>
+      <div class="row"><span class="k">Started</span><span class="v num">${fmtDateLong(p.phaseStart)}</span></div>
+      ${weeks!=null && p.goalWeightLb ? `<div class="row"><span class="k">Goal weight</span><span class="v num">${p.goalWeightLb} lb</span></div>
+      <div class="row"><span class="k">Est. time to goal</span><span class="v num">${weeks>0? "~"+weeks+" wk" : "reached"}</span></div>` : ``}
+      <div class="row"><span class="k">Daily target</span><span class="v num">${plan.cals} kcal</span></div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-block" id="btnChangePhase">Change Phase</button>
+      </div>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Body Composition</h2><span class="hint">Navy method estimate</span></div>
+    <div class="card">
+      ${currentBF()!=null ? `
+      <div class="row"><span class="k">Estimated body fat</span><span class="v num">${currentBF().toFixed(1)}%</span></div>
+      <div class="row"><span class="k">Estimated lean mass</span><span class="v num">${(latestWeight()*(1-currentBF()/100)).toFixed(1)} lb</span></div>
+      ` : `<div class="empty">Add waist &amp; neck measurements in Setup to estimate body fat.</div>`}
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-block" id="btnLogMeasure">+ Log Measurements</button>
+      </div>
+    </div>
+
+    ${el3===0 ? `<div class="card" style="border-color:var(--accent);"><div class="tip"><strong>Get started:</strong> log today's bodyweight and your waist/neck measurement — the dashboard fills in once you have data.</div></div>` : ``}
+  `;
+  document.getElementById("btnLogWeight").onclick = openLogWeightModal;
+  document.getElementById("btnLogMeasure").onclick = openLogMeasureModal;
+  document.getElementById("btnChangePhase").onclick = openChangePhaseModal;
+}
+
+function openLogWeightModal(){
+  openModal(`
+    <div class="modal-head"><h3>Log Weigh-in</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Date</label><input type="date" id="mwDate" value="${todayStr()}"></div>
+      <div class="field"><label>Weight (lb)</label><input type="number" step="0.1" id="mwWeight" placeholder="e.g. 161.4" value="${latestWeight()?latestWeight():''}"></div>
+      <button class="btn btn-accent btn-block" id="mwSave">Save</button>
+    </div>
+  `);
+  document.getElementById("mwSave").onclick = ()=>{
+    const date = document.getElementById("mwDate").value || todayStr();
+    const lb = parseFloat(document.getElementById("mwWeight").value);
+    if(!lb || lb<=0){ toast("Enter a valid weight"); return; }
+    STATE.weightLog = STATE.weightLog.filter(e=>e.date!==date);
+    STATE.weightLog.push({date, lb});
+    STATE.weightLog.sort((a,b)=>a.date.localeCompare(b.date));
+    saveState(); closeModal(); toast("Weigh-in logged"); renderAll();
+  };
+}
+function openLogMeasureModal(){
+  const last = STATE.measureLog[STATE.measureLog.length-1] || {};
+  const p = STATE.profile;
+  openModal(`
+    <div class="modal-head"><h3>Log Measurements</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Date</label><input type="date" id="mmDate" value="${todayStr()}"></div>
+      <div class="field-grid">
+        <div class="field"><label>Waist (in)</label><input type="number" step="0.1" id="mmWaist" value="${last.waistIn||p.waistIn||''}"></div>
+        <div class="field"><label>Neck (in)</label><input type="number" step="0.1" id="mmNeck" value="${last.neckIn||p.neckIn||''}"></div>
+        <div class="field"><label>Chest (in)</label><input type="number" step="0.1" id="mmChest" value="${last.chestIn||''}"></div>
+        <div class="field"><label>Arm (in)</label><input type="number" step="0.1" id="mmArm" value="${last.armIn||''}"></div>
+      </div>
+      <button class="btn btn-accent btn-block" id="mmSave">Save</button>
+    </div>
+  `);
+  document.getElementById("mmSave").onclick = ()=>{
+    const date = document.getElementById("mmDate").value || todayStr();
+    const waistIn = parseFloat(document.getElementById("mmWaist").value)||null;
+    const neckIn = parseFloat(document.getElementById("mmNeck").value)||null;
+    const chestIn = parseFloat(document.getElementById("mmChest").value)||null;
+    const armIn = parseFloat(document.getElementById("mmArm").value)||null;
+    STATE.measureLog = STATE.measureLog.filter(e=>e.date!==date);
+    STATE.measureLog.push({date, waistIn, neckIn, chestIn, armIn});
+    STATE.measureLog.sort((a,b)=>a.date.localeCompare(b.date));
+    saveState(); closeModal(); toast("Measurements logged"); renderAll();
+  };
+}
+function openChangePhaseModal(){
+  const p = STATE.profile;
+  openModal(`
+    <div class="modal-head"><h3>Change Phase</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>New phase</label>
+        <select id="cpPhase">
+          <option value="bulk" ${p.phase==="bulk"?"selected":""}>Bulk — build muscle, surplus</option>
+          <option value="cut" ${p.phase==="cut"?"selected":""}>Cut — lose fat, deficit</option>
+          <option value="maintain" ${p.phase==="maintain"?"selected":""}>Maintain — recomposition</option>
+        </select>
+      </div>
+      <div class="field"><label>Goal weight (lb, optional)</label><input type="number" step="0.1" id="cpGoal" value="${p.goalWeightLb||''}"></div>
+      <button class="btn btn-sm" id="cpCalc" type="button">Not sure? Estimate from a target look</button>
+      <div class="ob-note">Recommended right now: <strong style="text-transform:capitalize">${recommendedPhase(currentBF())}</strong>, based on your latest estimated body fat.</div>
+      <button class="btn btn-accent btn-block" id="cpSave">Save</button>
+    </div>
+  `);
+  document.getElementById("cpCalc").onclick = ()=> openGoalWeightCalc((lb)=>{
+    document.getElementById("cpGoal").value = lb;
+  });
+  document.getElementById("cpSave").onclick = ()=>{
+    p.phase = document.getElementById("cpPhase").value;
+    p.phaseStart = todayStr();
+    p.goalWeightLb = parseFloat(document.getElementById("cpGoal").value)||null;
+    saveState(); closeModal(); toast("Phase updated"); renderAll();
+  };
+}
+
+function openGoalWeightCalc(onUse, heightIn){
+  const hIn = heightIn || (STATE.profile && STATE.profile.heightIn) || 69.5;
+  let muscleKey = "athletic", leanKey = "defined";
+  function render(){
+    const lb = goalWeightFromLook(muscleKey, leanKey, hIn);
+    openModal(`
+      <div class="modal-head"><h3>Estimate Goal Weight</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <div class="modal-body">
+        <div class="tip">This isn't reading your photos pixel-by-pixel — no app can do that reliably. It's the same math coaches use: how muscular you want to look (independent of height) crossed with how lean, scaled to your actual height in inches.</div>
+        <div class="field"><label>How muscular</label>
+          <div class="segmented" id="calcMuscle" style="flex-wrap:wrap;">
+            ${MUSCLE_LEVELS.map(m=>`<button data-v="${m.key}" class="${muscleKey===m.key?"active":""}" style="flex:1 1 45%;">${m.label}</button>`).join("")}
+          </div>
+          <div class="scale-note">${MUSCLE_LEVELS.find(m=>m.key===muscleKey).desc}</div>
+        </div>
+        <div class="field"><label>How lean</label>
+          <div class="segmented" id="calcLean">
+            ${LEAN_LEVELS.map(l=>`<button data-v="${l.key}" class="${leanKey===l.key?"active":""}">${l.label}</button>`).join("")}
+          </div>
+          <div class="scale-note">${LEAN_LEVELS.find(l=>l.key===leanKey).desc} (~${LEAN_LEVELS.find(l=>l.key===leanKey).bf}% body fat)</div>
+        </div>
+        <div class="qty-preview" style="grid-template-columns:1fr;">
+          <div class="qp"><div class="v num" style="font-size:22px;">${lb} lb</div><div class="l">at your height, this look</div></div>
+        </div>
+        <button class="btn btn-accent btn-block" id="calcUse">Use This as Goal Weight</button>
+      </div>
+    `);
+    document.querySelectorAll("#calcMuscle button").forEach(b=>{
+      b.onclick = ()=>{ muscleKey = b.dataset.v; render(); };
+    });
+    document.querySelectorAll("#calcLean button").forEach(b=>{
+      b.onclick = ()=>{ leanKey = b.dataset.v; render(); };
+    });
+    document.getElementById("calcUse").onclick = ()=>{
+      onUse(lb); closeModal(); toast("Goal weight set to "+lb+" lb");
+    };
+  }
+  render();
+}
+
+/* ============================= RENDER: TRAIN ============================= */
+function lastSessionFor(dayKey, exName){
+  for(let i=STATE.workoutLog.length-1;i>=0;i--){
+    const s = STATE.workoutLog[i];
+    if(s.dayKey!==dayKey) continue;
+    const ex = s.exercises.find(e=>e.n===exName);
+    if(ex && ex.sets.length) return {date:s.date, sets:ex.sets};
+  }
+  return null;
+}
+
+function renderTrain(){
+  const el = document.getElementById("view-train");
+  el.innerHTML = `
+    <div class="section-head"><h2 class="eyebrow">Split</h2><span class="hint">${STATE.workoutLog.length} sessions logged</span></div>
+    <div class="card" style="padding:0;">
+      ${SPLIT.map((d,i)=>`
+        <div class="day-card" data-day="${d.key}" style="${i>0?'border-top:1px solid var(--border);':''}">
+          <div><div class="d-label">Day ${i+1} · ${d.label}</div><div class="d-sub">${d.sub}</div></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="d-meta">${d.exercises.length} lifts</div>
+            <span class="chev">›</span>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">History</h2></div>
+    <div class="card">
+      ${STATE.workoutLog.length===0? `<div class="empty">No sessions logged yet. Tap a day above to start one.</div>` :
+        STATE.workoutLog.slice().reverse().slice(0,8).map(s=>{
+          const day = SPLIT.find(d=>d.key===s.dayKey);
+          const setCount = s.exercises.reduce((n,e)=>n+e.sets.length,0);
+          return `<div class="row"><span class="k">${fmtDate(s.date)} — ${day?day.label:s.dayKey}</span><span class="v num">${setCount} sets</span></div>`;
+        }).join("")
+      }
+    </div>
+  `;
+  el.querySelectorAll(".day-card").forEach(card=>{
+    card.onclick = ()=> openWorkoutModal(card.dataset.day);
+  });
+}
+
+function openWorkoutModal(dayKey){
+  const day = SPLIT.find(d=>d.key===dayKey);
+  const date = todayStr();
+  let existing = STATE.workoutLog.find(s=>s.date===date && s.dayKey===dayKey);
+  const draft = existing ? JSON.parse(JSON.stringify(existing)) :
+    {date, dayKey, exercises: day.exercises.map(e=>({n:e.n, sets:[]}))};
+
+  function renderBody(){
+    const html = `
+      <div class="modal-head"><h3>${day.label} — ${fmtDate(date)}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <div class="modal-body">
+        ${day.exercises.map((e,ei)=>{
+          const last = lastSessionFor(dayKey, e.n);
+          const sets = draft.exercises[ei].sets;
+          return `
+          <div class="exercise-row">
+            <div class="ex-head"><span class="ex-name">${esc(e.n)}</span><span class="ex-range num">${e.r}</span></div>
+            ${last? `<div class="ex-last">Last (${fmtDate(last.date)}): ${last.sets.map(s=>s.w+"×"+s.r).join(", ")}</div>`:``}
+            <div class="sets-holder" data-ei="${ei}">
+              ${sets.map((s,si)=>`
+                <div class="set-line" data-si="${si}">
+                  <input type="number" inputmode="decimal" class="num setW" placeholder="lb" value="${s.w!=null?s.w:''}">
+                  <span class="x">×</span>
+                  <input type="number" inputmode="numeric" class="num setR" placeholder="reps" value="${s.r!=null?s.r:''}">
+                  <button class="rm" data-ei="${ei}" data-si="${si}">&times;</button>
+                </div>`).join("")}
+            </div>
+            <button class="btn btn-sm add-set" data-ei="${ei}">+ Add Set</button>
+          </div>`;
+        }).join("")}
+        <button class="btn btn-accent btn-block" id="wSave">Save Session</button>
+        ${existing? `<button class="btn btn-block" id="wDelete" style="color:var(--danger)">Delete Session</button>`:``}
+      </div>
+    `;
+    openModal(html, {full:true});
+    wireBody();
+  }
+
+  function collectFromDOM(){
+    document.querySelectorAll(".sets-holder").forEach(holder=>{
+      const ei = +holder.dataset.ei;
+      const lines = holder.querySelectorAll(".set-line");
+      const sets = [];
+      lines.forEach(line=>{
+        const w = line.querySelector(".setW").value;
+        const r = line.querySelector(".setR").value;
+        sets.push({w: w===""?null:parseFloat(w), r: r===""?null:parseInt(r)});
+      });
+      draft.exercises[ei].sets = sets;
+    });
+  }
+
+  function wireBody(){
+    document.querySelectorAll(".add-set").forEach(btn=>{
+      btn.onclick = ()=>{
+        collectFromDOM();
+        const ei = +btn.dataset.ei;
+        const last = draft.exercises[ei].sets[draft.exercises[ei].sets.length-1];
+        draft.exercises[ei].sets.push({w: last?last.w:null, r: last?last.r:null});
+        renderBody();
+      };
+    });
+    document.querySelectorAll(".rm").forEach(btn=>{
+      btn.onclick = ()=>{
+        collectFromDOM();
+        const ei = +btn.dataset.ei, si = +btn.dataset.si;
+        draft.exercises[ei].sets.splice(si,1);
+        renderBody();
+      };
+    });
+    document.getElementById("wSave").onclick = ()=>{
+      collectFromDOM();
+      const hasAny = draft.exercises.some(e=>e.sets.some(s=>s.w!=null||s.r!=null));
+      if(!hasAny){ toast("Log at least one set"); return; }
+      STATE.workoutLog = STATE.workoutLog.filter(s=>!(s.date===date && s.dayKey===dayKey));
+      STATE.workoutLog.push(draft);
+      STATE.workoutLog.sort((a,b)=>a.date.localeCompare(b.date));
+      saveState(); closeModal(); toast("Session saved"); renderAll();
+    };
+    const delBtn = document.getElementById("wDelete");
+    if(delBtn) delBtn.onclick = ()=>{
+      STATE.workoutLog = STATE.workoutLog.filter(s=>!(s.date===date && s.dayKey===dayKey));
+      saveState(); closeModal(); toast("Session deleted"); renderAll();
+    };
+  }
+
+  renderBody();
+}
+
+/* ============================= RENDER: PHOTOS ============================= */
+let photoCache = [];
+let compareSel = [null,null];
+
+async function renderPhotos(){
+  const el = document.getElementById("view-photos");
+  photoCache = await getAllPhotos();
+  el.innerHTML = `
+    <div class="section-head"><h2 class="eyebrow">Progress Photos</h2><span class="hint">${photoCache.length} saved</span></div>
+    <div class="card">
+      <div class="btn-row">
+        <button class="btn btn-accent btn-block" id="btnAddPhoto">+ Add Photo</button>
+      </div>
+      <div class="tip" style="margin-top:10px;">For a written read on any photo, send it to Claude directly in a chat — that's free with your normal Claude usage. This tab is just for storing and comparing photos on-device.</div>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Compare</h2><span class="hint">tap two photos below</span></div>
+    <div class="card">
+      <div class="compare-wrap">
+        <div>
+          <div class="compare-slot" id="cmpA">${compareSlotHTML(compareSel[0])}</div>
+          <div class="compare-label">Before</div>
+        </div>
+        <div>
+          <div class="compare-slot" id="cmpB">${compareSlotHTML(compareSel[1])}</div>
+          <div class="compare-label">After</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Library</h2></div>
+    ${photoCache.length===0? `<div class="empty">No photos yet. Add one with and without a pump to track visual progress alongside the scale.</div>` :
+      `<div class="photo-grid" id="photoGrid">
+        ${photoCache.map(p=>`
+          <div class="photo-thumb ${p.tag==='goal'?'is-goal':''}" data-id="${p.id}">
+            <img src="${p.dataURL}" loading="lazy">
+            ${p.tag==='goal'?`<span class="goal-star">&#9733;</span>`:``}
+            <div class="date">${fmtDate(p.date)}</div>
+            <div class="tag">${p.tag}</div>
+          </div>
+        `).join("")}
+      </div>`
+    }
+  `;
+  document.getElementById("btnAddPhoto").onclick = openAddPhotoModal;
+  el.querySelectorAll(".photo-thumb").forEach(thumb=>{
+    thumb.onclick = ()=> openPhotoActionModal(thumb.dataset.id);
+  });
+}
+
+function compareSlotHTML(photo){
+  if(!photo) return `<div class="ph">Tap a photo in your library</div>`;
+  return `<img src="${photo.dataURL}">`;
+}
+
+function openAddPhotoModal(){
+  openModal(`
+    <div class="modal-head"><h3>Add Photo</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Photo</label><input type="file" accept="image/*" capture="environment" id="apFile"></div>
+      <div class="field"><label>Date</label><input type="date" id="apDate" value="${todayStr()}"></div>
+      <div class="field"><label>Condition</label>
+        <div class="segmented" id="apTag">
+          <button data-v="relaxed" class="active">Relaxed</button>
+          <button data-v="pumped">Pumped</button>
+          <button data-v="goal">Goal</button>
+        </div>
+      </div>
+      <div class="scale-note" id="apGoalNote" style="display:none">Goal photos are your own saved reference pics — the AI analysis compares your progress photos against these.</div>
+      <button class="btn btn-accent btn-block" id="apSave">Save Photo</button>
+    </div>
+  `);
+  let tag = "relaxed";
+  document.querySelectorAll("#apTag button").forEach(b=>{
+    b.onclick = ()=>{
+      document.querySelectorAll("#apTag button").forEach(x=>x.classList.remove("active"));
+      b.classList.add("active"); tag = b.dataset.v;
+      document.getElementById("apGoalNote").style.display = tag==="goal"?"block":"none";
+    };
+  });
+  document.getElementById("apSave").onclick = async ()=>{
+    const file = document.getElementById("apFile").files[0];
+    if(!file){ toast("Choose a photo first"); return; }
+    const btn = document.getElementById("apSave");
+    btn.disabled = true; btn.textContent = "Saving…";
+    const date = document.getElementById("apDate").value || todayStr();
+    try{
+      const dataURL = await resizeImage(file);
+      await addPhoto({id:uid(), date, tag, dataURL});
+      closeModal(); toast("Photo saved"); renderPhotos();
+    }catch(e){
+      toast("Couldn't read that photo"); btn.disabled=false; btn.textContent="Save Photo";
+    }
+  };
+}
+function resizeImage(file, maxDim, quality){
+  maxDim = maxDim || 1280; quality = quality || 0.86;
+  return new Promise((resolve,reject)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>{
+      let width = img.naturalWidth, height = img.naturalHeight;
+      if(width > maxDim || height > maxDim){
+        if(width > height){ height = Math.round(height*maxDim/width); width = maxDim; }
+        else { width = Math.round(width*maxDim/height); height = maxDim; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error("image load failed")); };
+    img.src = url;
+  });
+}
+function openPhotoActionModal(id){
+  const p = photoCache.find(x=>x.id===id);
+  if(!p) return;
+  openModal(`
+    <div class="modal-head"><h3>${fmtDateLong(p.date)} · ${p.tag}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body photo-viewer">
+      <img src="${p.dataURL}">
+      <div class="tip">Want a read on this photo? Open a chat with Claude (this app, claude.ai, or the Claude mobile app) and send it there — no extra cost, it's covered by your normal Claude usage.</div>
+      <div class="btn-row">
+        <button class="btn btn-block" id="paCompareA">Set as Before</button>
+        <button class="btn btn-block" id="paCompareB">Set as After</button>
+      </div>
+      <button class="btn btn-block" id="paDelete" style="color:var(--danger)">Delete Photo</button>
+    </div>
+  `);
+  document.getElementById("paCompareA").onclick = ()=>{ compareSel[0]=p; closeModal(); renderPhotos(); };
+  document.getElementById("paCompareB").onclick = ()=>{ compareSel[1]=p; closeModal(); renderPhotos(); };
+  document.getElementById("paDelete").onclick = async ()=>{
+    await deletePhoto(p.id);
+    if(compareSel[0]&&compareSel[0].id===p.id) compareSel[0]=null;
+    if(compareSel[1]&&compareSel[1].id===p.id) compareSel[1]=null;
+    closeModal(); toast("Photo deleted"); renderPhotos();
+  };
+}
+
+/* ============================= FOOD LOG ============================= */
+function foodEntriesFor(date){ return STATE.foodLog.filter(e=>e.date===date); }
+function foodTotalsFor(date){
+  return foodEntriesFor(date).reduce((t,e)=>{
+    t.cals += e.cals; t.protein += e.protein; t.carbs += e.carbs; t.fat += e.fat;
+    return t;
+  }, {cals:0, protein:0, carbs:0, fat:0});
+}
+function upsertMyFood(food){
+  const idx = STATE.myFoods.findIndex(f=>f.id===food.id);
+  food.lastUsed = todayStr();
+  if(idx>-1) STATE.myFoods[idx] = food; else STATE.myFoods.push(food);
+  saveState();
+}
+function addFoodEntry(date, food, grams){
+  const scale = food.isCustom ? 1 : grams/100;
+  const entry = {
+    id: uid(), date, foodId: food.id, name: food.name,
+    grams: food.isCustom ? null : grams,
+    cals: Math.round(food.cals100*scale),
+    protein: Math.round(food.protein100*scale*10)/10,
+    carbs: Math.round(food.carbs100*scale*10)/10,
+    fat: Math.round(food.fat100*scale*10)/10,
+  };
+  STATE.foodLog.push(entry);
+  upsertMyFood(food);
+  saveState();
+  return entry;
+}
+function deleteFoodEntry(id){
+  STATE.foodLog = STATE.foodLog.filter(e=>e.id!==id);
+  saveState();
+}
+function num(v){ const n = parseFloat(v); return isFinite(n) ? n : 0; }
+
+function normalizeOFFProduct(product){
+  const n = product.nutriments || {};
+  const servingSize = parseFloat(product.serving_size) || 100;
+  return {
+    id: "off_" + (product.code || uid()),
+    name: product.product_name || product.product_name_en || product.generic_name || "Unnamed product",
+    brand: product.brands || "",
+    cals100: num(n["energy-kcal_100g"]),
+    protein100: num(n["proteins_100g"]),
+    carbs100: num(n["carbohydrates_100g"]),
+    fat100: num(n["fat_100g"]),
+    defaultGrams: servingSize,
+    isCustom: false
+  };
+}
+async function offSearch(query){
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=15`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("search failed");
+  const data = await res.json();
+  return (data.products||[])
+    .filter(p=>p.product_name && p.nutriments && p.nutriments["energy-kcal_100g"]!=null)
+    .map(normalizeOFFProduct);
+}
+async function offBarcode(code){
+  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("lookup failed");
+  const data = await res.json();
+  if(data.status!==1 || !data.product) return null;
+  return normalizeOFFProduct(data.product);
+}
+
+/* ============================= RENDER: FUEL ============================= */
+let fuelLogDate = null;
+function renderFuel(){
+  const el = document.getElementById("view-fuel");
+  const p = STATE.profile;
+  if(!p){ el.innerHTML = `<div class="empty">Finish setup to get your nutrition targets.</div>`; return; }
+  if(!fuelLogDate) fuelLogDate = todayStr();
+  const plan = macroPlan(p.phase);
+  const bf = currentBF();
+  const rec = recommendedPhase(bf);
+  const proteinCals = plan.protein*4, carbCals = plan.carbs*4, fatCals = plan.fat*9;
+  const entries = foodEntriesFor(fuelLogDate);
+  const totals = foodTotalsFor(fuelLogDate);
+  const calPct = Math.min(100, Math.round(totals.cals/plan.cals*100));
+  const proPct = Math.min(100, Math.round(totals.protein/plan.protein*100));
+
+  el.innerHTML = `
+    <div class="section-head"><h2 class="eyebrow">Daily Targets</h2><span class="hint" style="text-transform:capitalize">${p.phase} phase</span></div>
+    <div class="card">
+      <div class="row"><span class="k">Maintenance (TDEE)</span><span class="v num">${plan.base} kcal</span></div>
+      <div class="row"><span class="k">Target calories</span><span class="v num">${plan.cals} kcal</span></div>
+      <div class="row"><span class="k">Expected rate</span><span class="v">${plan.rateLabel}</span></div>
+      <div style="margin-top:14px;">
+        <div class="macro-bar">
+          <div style="width:${(proteinCals/plan.cals*100).toFixed(1)}%; background:var(--accent);"></div>
+          <div style="width:${(carbCals/plan.cals*100).toFixed(1)}%; background:var(--info);"></div>
+          <div style="width:${(fatCals/plan.cals*100).toFixed(1)}%; background:var(--warn);"></div>
+        </div>
+        <div class="macro-legend">
+          <div class="li"><span class="sw" style="background:var(--accent)"></span>Protein <span class="num">${plan.protein}g</span></div>
+          <div class="li"><span class="sw" style="background:var(--info)"></span>Carbs <span class="num">${plan.carbs}g</span></div>
+          <div class="li"><span class="sw" style="background:var(--warn)"></span>Fat <span class="num">${plan.fat}g</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Food Log</h2><input type="date" id="fuelDate" value="${fuelLogDate}" style="border:none;background:none;color:var(--text-faint);font-size:11.5px;padding:0;"></div>
+    <div class="card">
+      <div class="progress-row"><span>Calories</span><span class="num">${totals.cals} / ${plan.cals}</span></div>
+      <div class="progress-bar ${totals.cals>plan.cals*1.05?'over':''}"><div style="width:${calPct}%"></div></div>
+      <div class="progress-row" style="margin-top:10px;"><span>Protein</span><span class="num">${totals.protein}g / ${plan.protein}g</span></div>
+      <div class="progress-bar"><div style="width:${proPct}%"></div></div>
+
+      <div style="margin-top:12px;">
+        ${entries.length===0? `<div class="empty" style="padding:14px 0;">Nothing logged ${fuelLogDate===todayStr()?"today":"this day"} yet.</div>` :
+          entries.map(e=>`
+            <div class="food-row">
+              <div>
+                <div class="fname">${esc(e.name)}</div>
+                <div class="fmeta">${e.grams? e.grams+"g · ":""}${e.protein}g P · ${e.carbs}g C · ${e.fat}g F</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span class="fmacro num">${e.cals} kcal</span>
+                <button class="rm" data-id="${e.id}">&times;</button>
+              </div>
+            </div>
+          `).join("")
+        }
+      </div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-accent btn-block" id="btnLogFood">+ Log Food</button>
+      </div>
+    </div>
+
+    ${bf!=null && rec!==p.phase ? `
+    <div class="card" style="border-color:var(--accent);">
+      <div class="tip"><strong>Worth a look:</strong> based on your latest measurements (~${bf.toFixed(1)}% BF), <strong style="text-transform:capitalize">${rec}</strong> is the more typical recommendation right now. You're currently on <strong style="text-transform:capitalize">${p.phase}</strong> — that's fine if it's deliberate, otherwise consider switching in Dashboard.</div>
+    </div>` : ``}
+
+    <div class="section-head"><h2 class="eyebrow">Bulk, Explained</h2></div>
+    <div class="card">
+      <ul class="plain">
+        <li><strong>Surplus:</strong> ~250–300 kcal above maintenance. More than that mostly adds fat, not muscle, at your training age.</li>
+        <li><strong>Protein:</strong> ~1g per lb bodyweight, spread across 3–4 meals so you're never far from a dose.</li>
+        <li><strong>Rate:</strong> aim for 0.25–0.4 lb/week gain. Faster than that on a lean bulk is fat, not gains.</li>
+        <li><strong>Cycle length:</strong> run a lean bulk 10–16 weeks, then reassess with photos + waist measurement, not just the scale.</li>
+        <li><strong>Training:</strong> your job on a bulk is progressive overload — same split, add a rep or a small plate most weeks.</li>
+      </ul>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Cut, Explained</h2></div>
+    <div class="card">
+      <ul class="plain">
+        <li><strong>Deficit:</strong> ~20–25% below maintenance. Deeper cuts speed fat loss but cost you strength and muscle.</li>
+        <li><strong>Protein:</strong> push it up to ~1.1g/lb — this is what protects your muscle in a deficit.</li>
+        <li><strong>Rate:</strong> 0.5–1% of bodyweight per week. At your weight that's roughly 0.8–1.6 lb/week; slower is more muscle-sparing.</li>
+        <li><strong>Cycle length:</strong> 6–12 weeks, then either hold at maintenance for a few weeks or move into a bulk — don't cut indefinitely.</li>
+        <li><strong>Training:</strong> keep weights heavy, let reps or sets drop slightly if recovery gets hard — the goal is to hold strength, not build it.</li>
+      </ul>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Food Guide</h2></div>
+    <div class="card">
+      <ul class="plain">
+        <li><strong>Protein:</strong> chicken breast/thigh, eggs, Greek yogurt, cottage cheese, lean beef, fish, whey.</li>
+        <li><strong>Carbs:</strong> rice, oats, potatoes, fruit — time the biggest portion around your lift.</li>
+        <li><strong>Fats:</strong> olive oil, nuts, peanut butter, avocado — don't drop these too low, they run your hormones.</li>
+        <li><strong>Hydration:</strong> roughly half your bodyweight (lb) in ounces of water daily, more on training days.</li>
+        <li><strong>Consistency beats precision:</strong> hitting your calories within ~100 kcal most days matters more than a perfect macro split some days.</li>
+      </ul>
+    </div>
+  `;
+  document.getElementById("fuelDate").onchange = (e)=>{ fuelLogDate = e.target.value || todayStr(); renderFuel(); };
+  document.getElementById("btnLogFood").onclick = ()=> openLogFoodModal(fuelLogDate);
+  el.querySelectorAll(".food-row .rm").forEach(btn=>{
+    btn.onclick = ()=>{ deleteFoodEntry(btn.dataset.id); toast("Removed"); renderFuel(); };
+  });
+}
+
+/* ============================= LOG FOOD MODAL ============================= */
+function openLogFoodModal(date){
+  let mode = "search";
+  let results = [];
+  let searchState = "idle"; // idle | loading | error | done
+  let errorMsg = "";
+  let picked = null; // normalized food object being quantified
+  let grams = 100;
+
+  function macrosFor(food, g){
+    const scale = food.isCustom ? 1 : g/100;
+    return {
+      cals: Math.round(food.cals100*scale),
+      protein: Math.round(food.protein100*scale*10)/10,
+      carbs: Math.round(food.carbs100*scale*10)/10,
+      fat: Math.round(food.fat100*scale*10)/10,
+    };
+  }
+
+  function render(){
+    if(picked){
+      const m = macrosFor(picked, grams);
+      openModal(`
+        <div class="modal-head"><h3>${esc(picked.name)}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+        <div class="modal-body">
+          ${picked.brand? `<div class="hint">${esc(picked.brand)}</div>` : ``}
+          ${!picked.isCustom? `<div class="field"><label>Amount (g)</label><input type="number" id="lfGrams" value="${grams}"></div>` : ``}
+          <div class="qty-preview">
+            <div class="qp"><div class="v num">${m.cals}</div><div class="l">kcal</div></div>
+            <div class="qp"><div class="v num">${m.protein}g</div><div class="l">Protein</div></div>
+            <div class="qp"><div class="v num">${m.carbs}g</div><div class="l">Carbs</div></div>
+            <div class="qp"><div class="v num">${m.fat}g</div><div class="l">Fat</div></div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-block" id="lfBack">Back</button>
+            <button class="btn btn-accent btn-block" id="lfAdd">Add to Log</button>
+          </div>
+        </div>
+      `, {full:true});
+      const gramsInput = document.getElementById("lfGrams");
+      if(gramsInput) gramsInput.oninput = ()=>{ grams = num(gramsInput.value)||0; render(); };
+      document.getElementById("lfBack").onclick = ()=>{ picked=null; render(); };
+      document.getElementById("lfAdd").onclick = ()=>{
+        addFoodEntry(date, picked, grams);
+        closeModal(); toast("Logged"); renderFuel();
+      };
+      return;
+    }
+
+    const tabs = [["search","Search"],["barcode","Barcode"],["mine","My Foods"],["custom","Custom"]];
+    let body = "";
+    if(mode==="search"){
+      body = `
+        <div class="field"><label>Food name</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="lfQuery" placeholder="e.g. chicken breast" style="flex:1;">
+            <button class="btn btn-accent" id="lfSearchBtn">Search</button>
+          </div>
+        </div>
+        <div id="lfResults">${resultsHTML()}</div>
+      `;
+    } else if(mode==="barcode"){
+      body = `
+        <div class="field"><label>Barcode number</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" inputmode="numeric" id="lfCode" placeholder="e.g. 0511111019930" style="flex:1;">
+            <button class="btn btn-accent" id="lfLookupBtn">Look Up</button>
+          </div>
+        </div>
+        <div class="scale-note">Type the numbers printed under the barcode's lines — most food packaging has this on the back or bottom.</div>
+        <div id="lfResults">${resultsHTML()}</div>
+      `;
+    } else if(mode==="mine"){
+      const mine = STATE.myFoods.slice().sort((a,b)=>(b.lastUsed||"").localeCompare(a.lastUsed||""));
+      body = `<div id="lfResults">${
+        mine.length===0? `<div class="empty">Nothing saved yet — foods you log get added here for one-tap reuse.</div>` :
+        mine.map((f,i)=>`
+          <div class="search-result" data-i="${i}">
+            <div><div class="rname">${esc(f.name)}</div><div class="rmeta">${f.brand? esc(f.brand)+" · ":""}${f.isCustom? "custom · "+f.cals100+" kcal" : Math.round(f.cals100)+" kcal / 100g"}</div></div>
+            <span class="chev">›</span>
+          </div>
+        `).join("")
+      }</div>`;
+    } else {
+      body = `
+        <div class="field"><label>Name</label><input type="text" id="cfName" placeholder="e.g. Mom's chicken rice bowl"></div>
+        <div class="field-grid">
+          <div class="field"><label>Calories</label><input type="number" id="cfCals"></div>
+          <div class="field"><label>Protein (g)</label><input type="number" id="cfProtein"></div>
+          <div class="field"><label>Carbs (g)</label><input type="number" id="cfCarbs"></div>
+          <div class="field"><label>Fat (g)</label><input type="number" id="cfFat"></div>
+        </div>
+        <button class="btn btn-accent btn-block" id="cfAdd">Add to Log</button>
+      `;
+    }
+
+    openModal(`
+      <div class="modal-head"><h3>Log Food</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <div class="modal-body">
+        <div class="segmented">
+          ${tabs.map(([k,l])=>`<button data-m="${k}" class="${mode===k?"active":""}">${l}</button>`).join("")}
+        </div>
+        ${body}
+      </div>
+    `, {full:true});
+    wire();
+  }
+
+  function resultsHTML(){
+    if(searchState==="loading") return `<div class="loading-row">Searching…</div>`;
+    if(searchState==="error") return `<div class="loading-row">${esc(errorMsg)}</div>`;
+    if(!results.length) return searchState==="done" ? `<div class="loading-row">No matches — try a different search or use Custom.</div>` : "";
+    return results.map((f,i)=>`
+      <div class="search-result" data-i="${i}">
+        <div><div class="rname">${esc(f.name)}</div><div class="rmeta">${f.brand? esc(f.brand)+" · ":""}${Math.round(f.cals100)} kcal / 100g</div></div>
+        <span class="chev">›</span>
+      </div>
+    `).join("");
+  }
+
+  function wire(){
+    document.querySelectorAll(".segmented button[data-m]").forEach(b=>{
+      b.onclick = ()=>{ mode = b.dataset.m; results=[]; searchState="idle"; render(); };
+    });
+    const searchBtn = document.getElementById("lfSearchBtn");
+    if(searchBtn) searchBtn.onclick = async ()=>{
+      const q = document.getElementById("lfQuery").value.trim();
+      if(!q){ toast("Type something to search"); return; }
+      searchState = "loading"; document.getElementById("lfResults").innerHTML = resultsHTML();
+      try{
+        results = await offSearch(q);
+        searchState = "done";
+      }catch(e){
+        searchState = "error"; errorMsg = "Search failed — check your connection";
+      }
+      document.getElementById("lfResults").innerHTML = resultsHTML();
+      wireResultTaps();
+    };
+    const lookupBtn = document.getElementById("lfLookupBtn");
+    if(lookupBtn) lookupBtn.onclick = async ()=>{
+      const code = document.getElementById("lfCode").value.trim();
+      if(!code){ toast("Enter a barcode number"); return; }
+      searchState = "loading"; document.getElementById("lfResults").innerHTML = resultsHTML();
+      try{
+        const food = await offBarcode(code);
+        if(food){ picked = food; grams = food.defaultGrams || 100; render(); return; }
+        results = []; searchState = "error"; errorMsg = "No product found for that barcode";
+      }catch(e){
+        searchState = "error"; errorMsg = "Lookup failed — check your connection";
+      }
+      document.getElementById("lfResults").innerHTML = resultsHTML();
+    };
+    const cfAdd = document.getElementById("cfAdd");
+    if(cfAdd) cfAdd.onclick = ()=>{
+      const name = document.getElementById("cfName").value.trim();
+      const cals = num(document.getElementById("cfCals").value);
+      if(!name || !cals){ toast("Add a name and calories at least"); return; }
+      const food = {
+        id: "custom_" + uid(), name,
+        cals100: cals, protein100: num(document.getElementById("cfProtein").value),
+        carbs100: num(document.getElementById("cfCarbs").value), fat100: num(document.getElementById("cfFat").value),
+        defaultGrams: null, isCustom: true
+      };
+      addFoodEntry(date, food, null);
+      closeModal(); toast("Logged"); renderFuel();
+    };
+    wireResultTaps();
+    const mineTaps = document.querySelectorAll("#lfResults .search-result[data-i]");
+    if(mode==="mine") mineTaps.forEach(row=>{
+      row.onclick = ()=>{
+        const mine = STATE.myFoods.slice().sort((a,b)=>(b.lastUsed||"").localeCompare(a.lastUsed||""));
+        picked = mine[+row.dataset.i];
+        grams = picked.defaultGrams || 100;
+        render();
+      };
+    });
+  }
+  function wireResultTaps(){
+    if(mode==="mine") return;
+    document.querySelectorAll("#lfResults .search-result[data-i]").forEach(row=>{
+      row.onclick = ()=>{
+        picked = results[+row.dataset.i];
+        grams = picked.defaultGrams || 100;
+        render();
+      };
+    });
+  }
+
+  render();
+}
+
+/* ============================= RENDER: SETTINGS ============================= */
+function renderSettings(){
+  const el = document.getElementById("view-settings");
+  const p = STATE.profile;
+  el.innerHTML = `
+    <div class="section-head"><h2 class="eyebrow">Profile</h2></div>
+    <div class="card">
+      <div class="row"><span class="k">Height</span><span class="v num">${Math.floor(p.heightIn/12)}′ ${(p.heightIn%12).toFixed(1)}″</span></div>
+      <div class="row"><span class="k">Age</span><span class="v num">${p.age}</span></div>
+      <div class="row"><span class="k">Activity</span><span class="v">${(ACTIVITY_LEVELS.find(a=>a.key===p.activity)||{}).label||"—"}</span></div>
+      <div class="btn-row" style="margin-top:12px;"><button class="btn btn-block" id="btnEditProfile">Edit Profile</button></div>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Photo Analysis</h2></div>
+    <div class="card">
+      <div class="tip">For a written read on any progress photo, just send it to Claude in a normal chat (this app, claude.ai, or the Claude mobile app) — no setup needed here, and it's covered by your existing Claude usage instead of a separate paid key.</div>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Appearance</h2></div>
+    <div class="card">
+      <div class="segmented">
+        <button data-t="auto" class="${STATE.theme==="auto"?"active":""}">Auto</button>
+        <button data-t="light" class="${STATE.theme==="light"?"active":""}">Light</button>
+        <button data-t="dark" class="${STATE.theme==="dark"?"active":""}">Dark</button>
+      </div>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Data</h2><span class="hint">stored only on this device</span></div>
+    <div class="card">
+      <div class="tip">Photos and logs live in this browser's local storage. They will not sync to another device automatically — export a backup if you switch phones or clear browser data.</div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-block" id="btnExport">Export Backup</button>
+        <button class="btn btn-block" id="btnImport">Import Backup</button>
+      </div>
+      <input type="file" accept="application/json" id="importFile" style="display:none">
+      <button class="btn btn-block" id="btnReset" style="margin-top:10px; color:var(--danger);">Reset All Data</button>
+    </div>
+  `;
+  document.getElementById("btnEditProfile").onclick = ()=>{ document.getElementById("onboard").classList.add("active"); startOnboard(true); };
+  el.querySelectorAll(".segmented button").forEach(b=>{
+    b.onclick = ()=>{ setTheme(b.dataset.t); renderSettings(); };
+  });
+  document.getElementById("btnExport").onclick = exportBackup;
+  document.getElementById("btnImport").onclick = ()=>document.getElementById("importFile").click();
+  document.getElementById("importFile").onchange = importBackup;
+  document.getElementById("btnReset").onclick = ()=>{
+    openModal(`
+      <div class="modal-head"><h3>Reset All Data</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <div class="modal-body">
+        <div class="tip">This deletes your profile, logs, and photos from this device. This can't be undone unless you've exported a backup.</div>
+        <button class="btn btn-block" id="confirmReset" style="color:var(--danger)">Yes, erase everything</button>
+      </div>
+    `);
+    document.getElementById("confirmReset").onclick = async ()=>{
+      localStorage.removeItem(LS_KEY);
+      const db = await getDB();
+      const tx = db.transaction("photos","readwrite");
+      tx.objectStore("photos").clear();
+      STATE = defaultState();
+      closeModal(); toast("Data reset");
+      location.reload();
+    };
+  };
+}
+
+async function exportBackup(){
+  const photos = await getAllPhotos();
+  const blob = new Blob([JSON.stringify({state:STATE, photos}, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `ironlog-backup-${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast("Backup downloaded");
+}
+function importBackup(e){
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      if(data.state) STATE = Object.assign(defaultState(), data.state);
+      saveState();
+      if(Array.isArray(data.photos)){
+        for(const p of data.photos) await addPhoto(p);
+      }
+      toast("Backup restored"); renderAll();
+    }catch(err){ toast("Couldn't read that file"); }
+  };
+  reader.readAsText(file);
+}
+
+/* ============================= TAB SWITCHING ============================= */
+function switchTab(tab){
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+  document.getElementById("view-"+tab).classList.add("active");
+  document.querySelectorAll("#tabbar button").forEach(b=>b.classList.toggle("active", b.dataset.tab===tab));
+  window.scrollTo(0,0);
+}
+document.getElementById("tabbar").addEventListener("click", e=>{
+  const btn = e.target.closest("button[data-tab]");
+  if(!btn) return;
+  switchTab(btn.dataset.tab);
+});
+
+function renderAll(){
+  renderTopBar();
+  renderDash();
+  renderTrain();
+  renderPhotos();
+  renderFuel();
+  if(STATE.profile) renderSettings();
+}
+
+/* ============================= ONBOARDING ============================= */
+let obStep = 1;
+let obDraft = {};
+function startOnboard(editing){
+  obStep = 1;
+  const p = STATE.profile;
+  obDraft = p ? JSON.parse(JSON.stringify(p)) : {
+    heightIn: 69.5, age: 18, activity:"moderate",
+    neckIn:null, waistIn:null, startWeightLb:160,
+    phase:"bulk", phaseStart: todayStr(), goalWeightLb:null
+  };
+  renderObStep();
+}
+function renderObStep(){
+  document.getElementById("obStepNum").textContent = obStep;
+  document.getElementById("obBack").style.display = obStep>1 ? "inline-flex" : "none";
+  const body = document.getElementById("obBody");
+  if(obStep===1){
+    body.innerHTML = `
+      <div class="field-grid">
+        <div class="field"><label>Height (ft)</label><input type="number" id="obFt" value="${Math.floor(obDraft.heightIn/12)}"></div>
+        <div class="field"><label>Height (in)</label><input type="number" step="0.5" id="obIn" value="${(obDraft.heightIn%12).toFixed(1)}"></div>
+      </div>
+      <div class="field-grid">
+        <div class="field"><label>Age</label><input type="number" id="obAge" value="${obDraft.age}"></div>
+        <div class="field"><label>Current weight (lb)</label><input type="number" step="0.1" id="obWeight" value="${obDraft.startWeightLb}"></div>
+      </div>
+      <div class="field"><label>Daily activity (outside training)</label>
+        <select id="obActivity">
+          ${ACTIVITY_LEVELS.map(a=>`<option value="${a.key}" ${obDraft.activity===a.key?"selected":""}>${a.label}</option>`).join("")}
+        </select>
+      </div>
+    `;
+  } else if(obStep===2){
+    body.innerHTML = `
+      <div class="ob-note">Waist &amp; neck let IRONLOG estimate body fat with the U.S. Navy method — accurate within a couple percent for most people, no fancy scale needed. Measure waist at the belly button, neck just below the larynx.</div>
+      <div class="field-grid">
+        <div class="field"><label>Waist (in)</label><input type="number" step="0.1" id="obWaist" value="${obDraft.waistIn||''}"></div>
+        <div class="field"><label>Neck (in)</label><input type="number" step="0.1" id="obNeck" value="${obDraft.neckIn||''}"></div>
+      </div>
+      <div class="scale-note">Not sure right now? Leave blank and add it later from the Dashboard — the app just won't show a body-fat estimate until then.</div>
+    `;
+  } else {
+    const tempBF = navyBF(parseFloat(obDraft.waistIn), parseFloat(obDraft.neckIn), obDraft.heightIn);
+    const rec = recommendedPhase(tempBF);
+    body.innerHTML = `
+      ${tempBF!=null? `<div class="ob-note">Estimated body fat: <strong>${tempBF.toFixed(1)}%</strong>. Suggested starting phase: <strong style="text-transform:capitalize">${rec}</strong>.</div>` : ``}
+      <div class="field"><label>Starting phase</label>
+        <select id="obPhase">
+          <option value="bulk" ${(obDraft.phase||rec)==="bulk"?"selected":""}>Bulk — build muscle</option>
+          <option value="cut" ${(obDraft.phase||rec)==="cut"?"selected":""}>Cut — lose fat first</option>
+          <option value="maintain" ${(obDraft.phase||rec)==="maintain"?"selected":""}>Maintain — recomposition</option>
+        </select>
+      </div>
+      <div class="field"><label>Goal weight (lb, optional)</label><input type="number" step="0.1" id="obGoal" value="${obDraft.goalWeightLb||''}"></div>
+      <button class="btn btn-sm" id="obCalc" type="button">Not sure? Estimate from a target look</button>
+      <div class="scale-note">Your goal weight is a checkpoint, not a finish line — you can re-set it any time from the Dashboard.</div>
+    `;
+    document.getElementById("obCalc").onclick = ()=> openGoalWeightCalc((lb)=>{
+      document.getElementById("obGoal").value = lb;
+    }, obDraft.heightIn);
+  }
+}
+document.getElementById("obNext").addEventListener("click", ()=>{
+  if(obStep===1){
+    const ft = parseFloat(document.getElementById("obFt").value)||5;
+    const inch = parseFloat(document.getElementById("obIn").value)||0;
+    obDraft.heightIn = ft*12+inch;
+    obDraft.age = parseInt(document.getElementById("obAge").value)||18;
+    obDraft.startWeightLb = parseFloat(document.getElementById("obWeight").value)||160;
+    obDraft.activity = document.getElementById("obActivity").value;
+    obStep = 2; renderObStep();
+  } else if(obStep===2){
+    obDraft.waistIn = parseFloat(document.getElementById("obWaist").value)||null;
+    obDraft.neckIn = parseFloat(document.getElementById("obNeck").value)||null;
+    obStep = 3; renderObStep();
+  } else {
+    obDraft.phase = document.getElementById("obPhase").value;
+    obDraft.goalWeightLb = parseFloat(document.getElementById("obGoal").value)||null;
+    obDraft.phaseStart = obDraft.phaseStart || todayStr();
+    finishOnboard();
+  }
+});
+document.getElementById("obBack").addEventListener("click", ()=>{
+  obStep = Math.max(1, obStep-1); renderObStep();
+});
+function finishOnboard(){
+  const isNew = !STATE.profile;
+  STATE.profile = obDraft;
+  if(isNew && STATE.weightLog.length===0){
+    STATE.weightLog.push({date: todayStr(), lb: obDraft.startWeightLb});
+  }
+  if(isNew && STATE.measureLog.length===0 && (obDraft.waistIn||obDraft.neckIn)){
+    STATE.measureLog.push({date: todayStr(), waistIn:obDraft.waistIn, neckIn:obDraft.neckIn, chestIn:null, armIn:null});
+  }
+  saveState();
+  document.getElementById("onboard").classList.remove("active");
+  renderAll();
+  toast(isNew? "Welcome to IRONLOG" : "Profile updated");
+}
+
+/* ============================= INIT ============================= */
+function init(){
+  if(STATE.theme && STATE.theme!=="auto") setTheme(STATE.theme);
+  if(!STATE.profile){
+    document.getElementById("onboard").classList.add("active");
+    startOnboard(false);
+  } else {
+    renderAll();
+  }
+}
+init();
+</script>
