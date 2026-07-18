@@ -252,6 +252,38 @@
   .look-preview .lp-num{font-size:24px; font-weight:800;}
   .look-preview .lp-sub{font-size:11.5px; color:var(--text-dim); margin-top:2px; line-height:1.4;}
 
+  /* progress blocks — "3D" plate-like tiles instead of a line chart */
+  .block-row{display:flex; gap:6px; flex-wrap:wrap;}
+  .block{
+    width:30px; height:30px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+    font-size:9.5px; font-weight:800; color:#fff;
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,.28), inset 0 2px 0 rgba(255,255,255,.18), 0 1px 2px rgba(0,0,0,.15);
+  }
+  .block.good{background:var(--good);}
+  .block.warn{background:var(--warn); color:#2b2109;}
+  .block.bad{background:var(--danger);}
+  .block.none{background:var(--surface-2); border:1px dashed var(--border); box-shadow:none; color:var(--text-faint);}
+  .block.fill{background:var(--accent);}
+  .block-legend{display:flex; gap:14px; margin-top:10px; flex-wrap:wrap;}
+  .block-legend .li{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-dim);}
+  .block-legend .sw{width:10px; height:10px; border-radius:3px;}
+
+  /* calorie balance diagram */
+  .cal-diagram{margin:12px 0 4px;}
+  .cal-diagram-track{position:relative; height:34px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; overflow:hidden;}
+  .cal-diagram-mid{position:absolute; left:50%; top:0; bottom:0; width:2px; background:var(--border); transform:translateX(-1px);}
+  .cal-diagram-fill{position:absolute; top:3px; bottom:3px; border-radius:6px;}
+  .cal-diagram-fill.surplus{left:50%; background:var(--warn);}
+  .cal-diagram-fill.deficit{right:50%; background:var(--info);}
+  .cal-diagram-labels{display:flex; justify-content:space-between; font-size:10.5px; color:var(--text-faint); margin-top:6px; text-transform:uppercase; letter-spacing:.05em;}
+
+  details.edu{border:1px solid var(--border); border-radius:6px; padding:10px 12px; background:var(--surface-2);}
+  details.edu summary{cursor:pointer; font-size:12px; font-weight:700; color:var(--accent-strong); list-style:none;}
+  details.edu summary::-webkit-details-marker{display:none;}
+  details.edu summary::after{content:" ▸"; }
+  details.edu[open] summary::after{content:" ▾";}
+  details.edu ul{margin-top:10px;}
+
   /* bottom nav */
   nav.tabbar{
     position:fixed; left:0; right:0; bottom:0; z-index:30;
@@ -623,6 +655,20 @@ function recommendedPhase(bf){
   if(bf < 17) return "maintain";
   return "cut";
 }
+function calorieDiagramHTML(baseline, target){
+  const diff = target - baseline;
+  const isSurplus = diff >= 0;
+  const visualPct = Math.min(46, Math.abs(diff)/baseline*350);
+  return `
+    <div class="cal-diagram">
+      <div class="cal-diagram-track">
+        <div class="cal-diagram-mid"></div>
+        <div class="cal-diagram-fill ${isSurplus?"surplus":"deficit"}" style="width:${visualPct}%;"></div>
+      </div>
+      <div class="cal-diagram-labels"><span>${baseline} maintenance</span><span>${target} target (${isSurplus?"+":""}${diff})</span></div>
+    </div>
+  `;
+}
 function macroPlan(phase){
   const p = STATE.profile; if(!p) return null;
   const w = latestWeight() || p.startWeightLb;
@@ -840,6 +886,58 @@ function weightChart(){
   </svg>`;
 }
 
+function targetWeeklyRate(phase, weightLb){
+  if(phase==="bulk") return 0.32;
+  if(phase==="cut") return -(weightLb*0.008);
+  return 0;
+}
+function weightNearOrBefore(sortedLog, dateLimit, fallback){
+  let val = fallback;
+  for(const e of sortedLog){ if(e.date<=dateLimit) val = e.lb; else break; }
+  return val;
+}
+function phaseWeekBlocks(){
+  const p = STATE.profile;
+  const today = todayStr();
+  const totalDays = daysBetween(p.phaseStart, today);
+  if(totalDays < 0) return [];
+  const numWeeks = Math.min(12, Math.floor(totalDays/7)+1);
+  const targetRate = targetWeeklyRate(p.phase, latestWeight()||p.startWeightLb);
+  const sorted = STATE.weightLog.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const blocks = [];
+  for(let i=0;i<numWeeks;i++){
+    const weekStartDate = addDaysStr(p.phaseStart, i*7);
+    const weekEndDate = addDaysStr(p.phaseStart, Math.min(totalDays, i*7+6));
+    const before = weightNearOrBefore(sorted, addDaysStr(weekStartDate,-1), p.startWeightLb);
+    const after = weightNearOrBefore(sorted, weekEndDate, before);
+    const hasData = sorted.some(e=>e.date>=weekStartDate && e.date<=weekEndDate);
+    let status = "none", delta = null;
+    if(hasData){
+      delta = after - before;
+      if(p.phase==="maintain"){
+        status = Math.abs(delta) <= 0.5 ? "good" : "warn";
+      } else {
+        const ratio = targetRate!==0 ? delta/targetRate : 0;
+        if(ratio >= 0.6 && ratio <= 1.6) status = "good";
+        else if(ratio > 0) status = "warn";
+        else status = "bad";
+      }
+    }
+    blocks.push({week:i+1, status, delta});
+  }
+  return blocks;
+}
+function goalProgressBlocks(){
+  const p = STATE.profile;
+  if(!p.goalWeightLb) return null;
+  const start = p.startWeightLb, goal = p.goalWeightLb, current = latestWeight()||start;
+  const span = goal - start;
+  if(Math.abs(span) < 0.1) return null;
+  const pct = Math.max(0, Math.min(100, ((current-start)/span)*100));
+  const totalBlocks = 10;
+  const filled = Math.round((pct/100)*totalBlocks);
+  return {pct, filled, totalBlocks};
+}
 function isActiveDay(date){
   return STATE.workoutLog.some(w=>w.date===date) || STATE.activityLog.some(a=>a.date===date);
 }
@@ -880,6 +978,8 @@ function renderDash(){
   const streak = computeStreak();
   const trainDays = trainingDaysThisWeek();
   const protAdh = proteinAdherenceThisWeek();
+  const weekBlocks = phaseWeekBlocks();
+  const goalBlocks = goalProgressBlocks();
   const chestPts = STATE.measureLog.filter(m=>m.chestIn!=null).map(m=>({date:m.date, chestIn:m.chestIn}));
   const armPts = STATE.measureLog.filter(m=>m.armIn!=null).map(m=>({date:m.date, armIn:m.armIn}));
 
@@ -910,6 +1010,28 @@ function renderDash(){
         <button class="btn btn-block" id="btnChangePhase">Change Phase</button>
       </div>
     </div>
+
+    <div class="section-head"><h2 class="eyebrow">Weekly Rate</h2><span class="hint">one block = one week</span></div>
+    <div class="card">
+      ${weekBlocks.length===0 ? `<div class="empty">Blocks fill in once you're a week into this phase with weigh-ins logged.</div>` : `
+      <div class="block-row">
+        ${weekBlocks.map(b=>`<div class="block ${b.status}" title="Week ${b.week}${b.delta!=null?': '+(b.delta>=0?'+':'')+b.delta.toFixed(1)+' lb':''}">${b.week}</div>`).join("")}
+      </div>
+      <div class="block-legend">
+        <div class="li"><span class="sw" style="background:var(--good)"></span>On target</div>
+        <div class="li"><span class="sw" style="background:var(--warn)"></span>Off pace</div>
+        <div class="li"><span class="sw" style="background:var(--danger)"></span>Wrong direction</div>
+        <div class="li"><span class="sw" style="background:var(--surface-2); border:1px dashed var(--border);"></span>No data</div>
+      </div>`}
+    </div>
+
+    ${goalBlocks ? `
+    <div class="section-head"><h2 class="eyebrow">Progress to Goal</h2><span class="hint">${Math.round(goalBlocks.pct)}% there</span></div>
+    <div class="card">
+      <div class="block-row">
+        ${Array.from({length:goalBlocks.totalBlocks}).map((_,i)=>`<div class="block ${i<goalBlocks.filled?'fill':'none'}"></div>`).join("")}
+      </div>
+    </div>` : ``}
 
     <div class="section-head"><h2 class="eyebrow">Body Composition</h2><span class="hint">Navy method estimate</span></div>
     <div class="card">
@@ -1585,8 +1707,7 @@ function renderFuel(){
   el.innerHTML = `
     <div class="section-head"><h2 class="eyebrow">Daily Targets</h2><span class="hint" style="text-transform:capitalize">${p.phase} phase</span></div>
     <div class="card">
-      <div class="row"><span class="k">Maintenance (TDEE)</span><span class="v num">${plan.base} kcal</span></div>
-      <div class="row"><span class="k">Target calories</span><span class="v num">${plan.cals} kcal</span></div>
+      ${calorieDiagramHTML(plan.base, plan.cals)}
       ${activeCals>0? `<div class="row"><span class="k">Earned from activity today</span><span class="v num">+${activeCals} kcal</span></div>
       <div class="row"><span class="k">Adjusted target today</span><span class="v num">${adjustedTarget} kcal</span></div>` : ``}
       <div class="row"><span class="k">Expected rate</span><span class="v">${plan.rateLabel}</span></div>
@@ -1642,48 +1763,45 @@ function renderFuel(){
       <div class="tip">${explainPhaseChoice(bf, latestWeight()||p.startWeightLb, p.goalWeightLb || goalWeightFromLook(p.lookMuscle||"athletic", p.lookLean||"defined", p.heightIn), {muscleKey: p.lookMuscle||"athletic", leanKey: p.lookLean||"defined"})}</div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow">What Bulking Actually Is</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Bulk vs Cut</h2></div>
     <div class="card">
-      <ul class="plain">
-        <li><strong>The mechanism:</strong> lifting with progressive overload creates a stimulus to build muscle; eating in a calorie surplus gives your body the extra energy and protein it needs to actually build that new tissue. Skip the surplus and the stimulus mostly just makes you stronger through the nervous system, not visibly bigger.</li>
-        <li><strong>Surplus size:</strong> ~250–300 kcal above maintenance. More than that mostly adds fat, not muscle, at your training age.</li>
-        <li><strong>Protein:</strong> ~1g per lb bodyweight, spread across 3–4 meals so you're never far from a dose.</li>
-        <li><strong>Rate:</strong> aim for 0.25–0.4 lb/week gain. Faster than that on a lean bulk is fat, not gains.</li>
-        <li><strong>Cycle length:</strong> run a lean bulk 10–16 weeks, then reassess with photos + waist measurement, not just the scale.</li>
-        <li><strong>Training:</strong> your job on a bulk is progressive overload — same split, add a rep or a small plate most weeks.</li>
-      </ul>
-    </div>
-
-    <div class="section-head"><h2 class="eyebrow">What Cutting Actually Is</h2></div>
-    <div class="card">
-      <ul class="plain">
-        <li><strong>The mechanism:</strong> a calorie deficit forces your body to burn stored fat for energy. It does not build muscle — at best, high protein and continued heavy lifting help you hold onto the muscle you already have while the fat covering it comes off.</li>
-        <li><strong>Deficit size:</strong> ~20–25% below maintenance. Deeper cuts speed fat loss but cost you strength and muscle.</li>
-        <li><strong>Protein:</strong> push it up to ~1.1g/lb — this is what protects your muscle in a deficit.</li>
-        <li><strong>Rate:</strong> 0.5–1% of bodyweight per week. At your weight that's roughly 0.8–1.6 lb/week; slower is more muscle-sparing.</li>
-        <li><strong>Cycle length:</strong> 6–12 weeks, then either hold at maintenance for a few weeks or move into a bulk — don't cut indefinitely.</li>
-        <li><strong>Training:</strong> keep weights heavy, let reps or sets drop slightly if recovery gets hard — the goal is to hold strength, not build it.</li>
-      </ul>
-    </div>
-
-    <div class="section-head"><h2 class="eyebrow">Why Not Just Cut Right Now?</h2></div>
-    <div class="card">
-      <ul class="plain">
-        <li><strong>Cutting reveals muscle, it doesn't create it.</strong> If you cut before you've built much muscle, you end up lean but small — visible abs on a thin frame, not the athletic V-taper look you're after.</li>
-        <li><strong>You can't effectively build and lose at the same time.</strong> Building muscle needs a calorie surplus; losing fat needs a deficit. Doing both at once only works in narrow cases — very new lifters, or people starting from a higher body fat — and even then it's slow. Outside that window, alternating phases builds muscle faster and cuts fat faster than trying to do both badly at once.</li>
-        <li><strong>The order that gets you to the reference look fastest:</strong> build the muscle (bulk) → reveal it (cut) → reassess and repeat if you want more size. Skipping straight to cutting just means a smaller reveal.</li>
-      </ul>
+      <div style="display:flex; align-items:stretch; gap:8px; margin-bottom:12px;">
+        <div style="flex:1; text-align:center; padding:12px 8px; background:var(--warn-soft); border-radius:8px;">
+          <div style="font-weight:800; font-size:12.5px; color:var(--warn);">BULK</div>
+          <div style="font-size:11px; color:var(--text-dim); margin-top:3px;">Surplus builds muscle</div>
+        </div>
+        <div style="display:flex; align-items:center; color:var(--text-faint); font-size:18px;">→</div>
+        <div style="flex:1; text-align:center; padding:12px 8px; background:var(--info-soft); border-radius:8px;">
+          <div style="font-weight:800; font-size:12.5px; color:var(--info);">CUT</div>
+          <div style="font-size:11px; color:var(--text-dim); margin-top:3px;">Deficit reveals it</div>
+        </div>
+      </div>
+      <div class="tip">You can't effectively build muscle and lose fat at the same time — one needs extra calories, the other needs fewer. Cutting before you've built the muscle just means a smaller reveal. Alternating phases gets you to the reference look faster than trying to do both badly at once.</div>
+      <details class="edu" style="margin-top:12px;">
+        <summary>Full breakdown — rates, protein, cycle length, mechanism</summary>
+        <ul class="plain">
+          <li><strong>Bulk mechanism:</strong> progressive overload creates the stimulus; a ~250–300 kcal surplus gives your body what it needs to actually build new tissue from that stimulus, not just get stronger neurologically.</li>
+          <li><strong>Bulk rate:</strong> 0.25–0.4 lb/week. Faster is fat, not muscle. Run it 10–16 weeks, reassess with photos + waist measurement.</li>
+          <li><strong>Cut mechanism:</strong> a ~20–25% deficit burns stored fat; it doesn't build muscle — high protein + heavy lifting just protects what you already have while it comes off.</li>
+          <li><strong>Cut rate:</strong> 0.5–1% bodyweight/week (~0.8–1.6 lb/week at your weight). Slower is more muscle-sparing. Run it 6–12 weeks, don't cut indefinitely.</li>
+          <li><strong>Protein both phases:</strong> ~1g/lb on a bulk, ~1.1g/lb on a cut, spread across 3–4 meals.</li>
+          <li><strong>Training:</strong> add reps/weight most weeks on a bulk; hold your weights on a cut, let volume dip slightly if recovery gets hard.</li>
+        </ul>
+      </details>
     </div>
 
     <div class="section-head"><h2 class="eyebrow">Food Guide</h2></div>
     <div class="card">
-      <ul class="plain">
-        <li><strong>Protein:</strong> chicken breast/thigh, eggs, Greek yogurt, cottage cheese, lean beef, fish, whey.</li>
-        <li><strong>Carbs:</strong> rice, oats, potatoes, fruit — time the biggest portion around your lift.</li>
-        <li><strong>Fats:</strong> olive oil, nuts, peanut butter, avocado — don't drop these too low, they run your hormones.</li>
-        <li><strong>Hydration:</strong> roughly half your bodyweight (lb) in ounces of water daily, more on training days.</li>
-        <li><strong>Consistency beats precision:</strong> hitting your calories within ~100 kcal most days matters more than a perfect macro split some days.</li>
-      </ul>
+      <div class="tip">Consistency beats precision — hitting your calories within ~100 kcal most days matters more than a perfect macro split some days.</div>
+      <details class="edu" style="margin-top:10px;">
+        <summary>Protein, carbs, fats, hydration — go-to picks</summary>
+        <ul class="plain">
+          <li><strong>Protein:</strong> chicken breast/thigh, eggs, Greek yogurt, cottage cheese, lean beef, fish, whey.</li>
+          <li><strong>Carbs:</strong> rice, oats, potatoes, fruit — time the biggest portion around your lift.</li>
+          <li><strong>Fats:</strong> olive oil, nuts, peanut butter, avocado — don't drop these too low, they run your hormones.</li>
+          <li><strong>Hydration:</strong> roughly half your bodyweight (lb) in ounces of water daily, more on training days.</li>
+        </ul>
+      </details>
     </div>
   `;
   document.getElementById("fuelDate").onchange = (e)=>{ fuelLogDate = e.target.value || todayStr(); renderFuel(); };
@@ -2386,6 +2504,7 @@ let obStep = 1;
 let obDraft = {};
 let obLookState = null;
 let obGoalPhotoPending = null;
+let obBeforePhotoPending = null;
 function startOnboard(editing){
   obStep = 1;
   const p = STATE.profile;
@@ -2396,6 +2515,7 @@ function startOnboard(editing){
   };
   obLookState = {muscleKey: obDraft.lookMuscle||"athletic", leanKey: obDraft.lookLean||"defined", heightIn: obDraft.heightIn};
   obGoalPhotoPending = null;
+  obBeforePhotoPending = null;
   renderObStep();
 }
 function renderObStep(){
@@ -2431,7 +2551,13 @@ function renderObStep(){
         <li><strong>Timing:</strong> first thing in the morning, after the bathroom, before eating — that's when readings are most consistent day to day.</li>
       </ul>
       <div class="scale-note">Not sure right now? Leave blank and add it later from the Dashboard — the app just won't show a body-fat estimate until then.</div>
+      <div class="field" style="margin-top:4px;">
+        <label>Before photo (optional)</label>
+        <input type="file" accept="image/*" id="obBeforePhoto">
+        <div class="scale-note">This doesn't make the body-fat number more accurate — that still comes from the waist/neck measurement above, no app can reliably read body fat from a photo. What it does give you is a real "day one" to compare against later, tagged and saved only on your phone.</div>
+      </div>
     `;
+    document.getElementById("obBeforePhoto").onchange = (e)=>{ obBeforePhotoPending = e.target.files[0] || null; };
   } else if(obStep===3){
     const r = renderLookPicker(obLookState, ()=>{});
     body.innerHTML = `
@@ -2494,6 +2620,12 @@ document.getElementById("obNext").addEventListener("click", async ()=>{
   } else if(obStep===2){
     obDraft.waistIn = parseFloat(document.getElementById("obWaist").value)||null;
     obDraft.neckIn = parseFloat(document.getElementById("obNeck").value)||null;
+    if(obBeforePhotoPending){
+      try{
+        const dataURL = await resizeImage(obBeforePhotoPending);
+        await addPhoto({id:uid(), date: todayStr(), tag:"relaxed", angle:"front", dataURL});
+      }catch(e){ /* non-critical, skip */ }
+    }
     obStep = 3; renderObStep();
   } else if(obStep===3){
     obDraft.lookMuscle = obLookState.muscleKey;
