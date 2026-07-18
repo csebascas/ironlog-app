@@ -1074,16 +1074,33 @@ function openWorkoutModal(dayKey){
 let photoCache = [];
 let compareSel = [null,null];
 
+const SHOOT_STEPS = [
+  {angle:"front", tag:"relaxed", label:"Front — Relaxed", instruction:"Face the camera straight on, arms relaxed at your sides, normal lighting. Same spot each time if you can — it makes comparisons cleaner."},
+  {angle:"front", tag:"pumped", label:"Front — Pumped", instruction:"Same position. Optional: flex or do a few pushups first for a pumped comparison shot."},
+  {angle:"side", tag:"relaxed", label:"Side — Relaxed", instruction:"Turn 90°, arm relaxed at your side, camera roughly at chest height."},
+  {angle:"back", tag:"relaxed", label:"Back — Relaxed", instruction:"Face away from the camera, arms relaxed, same stance as the front shot."},
+];
+
 async function renderPhotos(){
   const el = document.getElementById("view-photos");
   photoCache = await getAllPhotos();
+  const lastDate = photoCache.length ? photoCache[0].date : null;
+  const daysSince = lastDate ? daysBetween(lastDate, todayStr()) : null;
   el.innerHTML = `
+    ${daysSince!=null && daysSince>=14 ? `
+    <div class="card" style="border-color:var(--accent);">
+      <div class="tip"><strong>Time for an update:</strong> your last photo was ${daysSince} days ago. A fresh set (same angles, same lighting if you can) keeps your comparisons meaningful.</div>
+    </div>` : ``}
+
     <div class="section-head"><h2 class="eyebrow">Progress Photos</h2><span class="hint">${photoCache.length} saved</span></div>
     <div class="card">
       <div class="btn-row">
-        <button class="btn btn-accent btn-block" id="btnAddPhoto">+ Add Photo</button>
+        <button class="btn btn-accent btn-block" id="btnStartShoot">Guided Photo Set</button>
       </div>
-      <div class="tip" style="margin-top:10px;">For a written read on any photo, send it to Claude directly in a chat — that's free with your normal Claude usage. This tab is just for storing and comparing photos on-device.</div>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn btn-block" id="btnAddPhoto">+ Add Single Photo</button>
+      </div>
+      <div class="tip" style="margin-top:10px;">For a written read on any photo, send it to Claude directly in a chat — that's free with your normal Claude usage. This tab stores and compares photos on-device; it doesn't analyze them itself.</div>
     </div>
 
     <div class="section-head"><h2 class="eyebrow">Compare</h2><span class="hint">tap two photos below</span></div>
@@ -1101,23 +1118,63 @@ async function renderPhotos(){
     </div>
 
     <div class="section-head"><h2 class="eyebrow">Library</h2></div>
-    ${photoCache.length===0? `<div class="empty">No photos yet. Add one with and without a pump to track visual progress alongside the scale.</div>` :
+    ${photoCache.length===0? `<div class="empty">No photos yet. Try Guided Photo Set for a consistent front/side/back baseline.</div>` :
       `<div class="photo-grid" id="photoGrid">
         ${photoCache.map(p=>`
           <div class="photo-thumb ${p.tag==='goal'?'is-goal':''}" data-id="${p.id}">
             <img src="${p.dataURL}" loading="lazy">
             ${p.tag==='goal'?`<span class="goal-star">&#9733;</span>`:``}
             <div class="date">${fmtDate(p.date)}</div>
-            <div class="tag">${p.tag}</div>
+            <div class="tag">${p.angle? p.angle+" · ":""}${p.tag}</div>
           </div>
         `).join("")}
       </div>`
     }
   `;
   document.getElementById("btnAddPhoto").onclick = openAddPhotoModal;
+  document.getElementById("btnStartShoot").onclick = openPhotoShootModal;
   el.querySelectorAll(".photo-thumb").forEach(thumb=>{
     thumb.onclick = ()=> openPhotoActionModal(thumb.dataset.id);
   });
+}
+
+function openPhotoShootModal(){
+  let idx = 0;
+  const date = todayStr();
+  function render(){
+    const step = SHOOT_STEPS[idx];
+    openModal(`
+      <div class="modal-head"><h3>Photo Set — Step ${idx+1} of ${SHOOT_STEPS.length}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <div class="modal-body">
+        <div class="eyebrow">${step.label}</div>
+        <div class="tip">${step.instruction}</div>
+        <div class="field"><label>Photo</label><input type="file" accept="image/*" capture="environment" id="shootFile"></div>
+        <div class="btn-row">
+          <button class="btn btn-block" id="shootSkip">Skip This Angle</button>
+          <button class="btn btn-accent btn-block" id="shootNext">Save &amp; ${idx===SHOOT_STEPS.length-1?"Finish":"Next"}</button>
+        </div>
+      </div>
+    `, {full:true});
+    document.getElementById("shootSkip").onclick = ()=> advance();
+    document.getElementById("shootNext").onclick = async ()=>{
+      const f = document.getElementById("shootFile").files[0];
+      if(f){
+        const btn = document.getElementById("shootNext");
+        btn.disabled = true; btn.textContent = "Saving…";
+        try{
+          const dataURL = await resizeImage(f);
+          await addPhoto({id:uid(), date, tag:step.tag, angle:step.angle, dataURL});
+        }catch(e){ /* skip silently, move on */ }
+      }
+      advance();
+    };
+  }
+  function advance(){
+    idx++;
+    if(idx >= SHOOT_STEPS.length){ closeModal(); toast("Photo set saved"); renderPhotos(); return; }
+    render();
+  }
+  render();
 }
 
 function compareSlotHTML(photo){
@@ -1190,7 +1247,7 @@ function openPhotoActionModal(id){
   const p = photoCache.find(x=>x.id===id);
   if(!p) return;
   openModal(`
-    <div class="modal-head"><h3>${fmtDateLong(p.date)} · ${p.tag}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-head"><h3>${fmtDateLong(p.date)} · ${p.angle? p.angle+" · ":""}${p.tag}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
     <div class="modal-body photo-viewer">
       <img src="${p.dataURL}">
       <div class="tip">Want a read on this photo? Open a chat with Claude (this app, claude.ai, or the Claude mobile app) and send it there — no extra cost, it's covered by your normal Claude usage.</div>
@@ -1349,10 +1406,16 @@ function renderFuel(){
       <div class="tip"><strong>Worth a look:</strong> based on your latest measurements (~${bf.toFixed(1)}% BF), <strong style="text-transform:capitalize">${rec}</strong> is the more typical recommendation right now. You're currently on <strong style="text-transform:capitalize">${p.phase}</strong> — that's fine if it's deliberate, otherwise consider switching in Dashboard.</div>
     </div>` : ``}
 
-    <div class="section-head"><h2 class="eyebrow">Bulk, Explained</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Why This Phase, Specifically</h2></div>
+    <div class="card">
+      <div class="tip">${explainPhaseChoice(bf, latestWeight()||p.startWeightLb, p.goalWeightLb || goalWeightFromLook(p.lookMuscle||"athletic", p.lookLean||"defined", p.heightIn), {muscleKey: p.lookMuscle||"athletic", leanKey: p.lookLean||"defined"})}</div>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">What Bulking Actually Is</h2></div>
     <div class="card">
       <ul class="plain">
-        <li><strong>Surplus:</strong> ~250–300 kcal above maintenance. More than that mostly adds fat, not muscle, at your training age.</li>
+        <li><strong>The mechanism:</strong> lifting with progressive overload creates a stimulus to build muscle; eating in a calorie surplus gives your body the extra energy and protein it needs to actually build that new tissue. Skip the surplus and the stimulus mostly just makes you stronger through the nervous system, not visibly bigger.</li>
+        <li><strong>Surplus size:</strong> ~250–300 kcal above maintenance. More than that mostly adds fat, not muscle, at your training age.</li>
         <li><strong>Protein:</strong> ~1g per lb bodyweight, spread across 3–4 meals so you're never far from a dose.</li>
         <li><strong>Rate:</strong> aim for 0.25–0.4 lb/week gain. Faster than that on a lean bulk is fat, not gains.</li>
         <li><strong>Cycle length:</strong> run a lean bulk 10–16 weeks, then reassess with photos + waist measurement, not just the scale.</li>
@@ -1360,14 +1423,24 @@ function renderFuel(){
       </ul>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow">Cut, Explained</h2></div>
+    <div class="section-head"><h2 class="eyebrow">What Cutting Actually Is</h2></div>
     <div class="card">
       <ul class="plain">
-        <li><strong>Deficit:</strong> ~20–25% below maintenance. Deeper cuts speed fat loss but cost you strength and muscle.</li>
+        <li><strong>The mechanism:</strong> a calorie deficit forces your body to burn stored fat for energy. It does not build muscle — at best, high protein and continued heavy lifting help you hold onto the muscle you already have while the fat covering it comes off.</li>
+        <li><strong>Deficit size:</strong> ~20–25% below maintenance. Deeper cuts speed fat loss but cost you strength and muscle.</li>
         <li><strong>Protein:</strong> push it up to ~1.1g/lb — this is what protects your muscle in a deficit.</li>
         <li><strong>Rate:</strong> 0.5–1% of bodyweight per week. At your weight that's roughly 0.8–1.6 lb/week; slower is more muscle-sparing.</li>
         <li><strong>Cycle length:</strong> 6–12 weeks, then either hold at maintenance for a few weeks or move into a bulk — don't cut indefinitely.</li>
         <li><strong>Training:</strong> keep weights heavy, let reps or sets drop slightly if recovery gets hard — the goal is to hold strength, not build it.</li>
+      </ul>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Why Not Just Cut Right Now?</h2></div>
+    <div class="card">
+      <ul class="plain">
+        <li><strong>Cutting reveals muscle, it doesn't create it.</strong> If you cut before you've built much muscle, you end up lean but small — visible abs on a thin frame, not the athletic V-taper look you're after.</li>
+        <li><strong>You can't effectively build and lose at the same time.</strong> Building muscle needs a calorie surplus; losing fat needs a deficit. Doing both at once only works in narrow cases — very new lifters, or people starting from a higher body fat — and even then it's slow. Outside that window, alternating phases builds muscle faster and cuts fat faster than trying to do both badly at once.</li>
+        <li><strong>The order that gets you to the reference look fastest:</strong> build the muscle (bulk) → reveal it (cut) → reassess and repeat if you want more size. Skipping straight to cutting just means a smaller reveal.</li>
       </ul>
     </div>
 
