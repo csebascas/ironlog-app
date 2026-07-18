@@ -454,6 +454,7 @@ function defaultState(){
     foodLog: [],     // {id, date, foodId, name, grams, cals, protein, carbs, fat}
     myRecipes: [],   // {id, name, servings, ingredients:[{name, grams, cals100, protein100, carbs100, fat100, isCustom}]}
     activityLog: [], // {id, date, type, minutes, distanceMi, note, cals}
+    sleepLog: [],    // {date, hours}
     theme: "auto",
     appLockHash: null
   };
@@ -789,6 +790,27 @@ function renderTopBar(){
 }
 
 /* ============================= RENDER: DASHBOARD ============================= */
+function sparklineSVG(entries, valueKey, opts){
+  opts = opts || {};
+  const w=520, h=opts.height||90, pad=8;
+  if(entries.length<2) return `<div class="chart-empty">${opts.emptyMsg||"Log at least two entries to see a trend."}</div>`;
+  const vals = entries.map(e=>e[valueKey]);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = (max-min)||1;
+  const pts = entries.map((e,i)=>{
+    const x = pad + (i/(entries.length-1))*(w-pad*2);
+    const y = h-pad - ((e[valueKey]-min)/range)*(h-pad*2);
+    return [x,y];
+  });
+  const path = pts.map((pt,i)=>(i===0?"M":"L")+pt[0].toFixed(1)+","+pt[1].toFixed(1)).join(" ");
+  const last = pts[pts.length-1];
+  return `<svg class="chart" style="height:${h}px;" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <line x1="${pad}" y1="${h/2}" x2="${w-pad}" y2="${h/2}" stroke="var(--border)" stroke-width="1" stroke-dasharray="2,3"/>
+    <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="3.6" fill="var(--accent)"/>
+  </svg>`;
+}
+
 function weightChart(){
   const log = STATE.weightLog.slice(-30);
   if(log.length < 2) return `<div class="chart-empty">Log at least two weigh-ins to see your trend line.</div>`;
@@ -818,6 +840,36 @@ function weightChart(){
   </svg>`;
 }
 
+function isActiveDay(date){
+  return STATE.workoutLog.some(w=>w.date===date) || STATE.activityLog.some(a=>a.date===date);
+}
+function computeStreak(){
+  let checkDate = todayStr();
+  if(!isActiveDay(checkDate)) checkDate = addDaysStr(checkDate, -1);
+  let streak = 0;
+  while(isActiveDay(checkDate)){ streak++; checkDate = addDaysStr(checkDate, -1); }
+  return streak;
+}
+function trainingDaysThisWeek(){
+  const days = new Set();
+  for(let i=0;i<7;i++){
+    const d = addDaysStr(todayStr(), -i);
+    if(isActiveDay(d)) days.add(d);
+  }
+  return days.size;
+}
+function proteinAdherenceThisWeek(){
+  const p = STATE.profile; if(!p) return {hit:0, total:7};
+  const plan = macroPlan(p.phase);
+  let hit = 0;
+  for(let i=0;i<7;i++){
+    const d = addDaysStr(todayStr(), -i);
+    const t = foodTotalsFor(d);
+    if(t.protein >= plan.protein*0.9) hit++;
+  }
+  return {hit, total:7};
+}
+
 function renderDash(){
   const p = STATE.profile;
   const el = document.getElementById("view-dash");
@@ -825,6 +877,11 @@ function renderDash(){
   const plan = macroPlan(p.phase);
   const weeks = phaseTimelineWeeks(p.phase);
   const el3 = STATE.weightLog.length;
+  const streak = computeStreak();
+  const trainDays = trainingDaysThisWeek();
+  const protAdh = proteinAdherenceThisWeek();
+  const chestPts = STATE.measureLog.filter(m=>m.chestIn!=null).map(m=>({date:m.date, chestIn:m.chestIn}));
+  const armPts = STATE.measureLog.filter(m=>m.armIn!=null).map(m=>({date:m.date, armIn:m.armIn}));
 
   el.innerHTML = `
     <div class="section-head"><h2 class="eyebrow">Weight Trend</h2><span class="hint">last 30 entries</span></div>
@@ -833,6 +890,13 @@ function renderDash(){
       <div class="btn-row" style="margin-top:12px;">
         <button class="btn btn-accent btn-block" id="btnLogWeight">+ Log Weigh-in</button>
       </div>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Consistency</h2></div>
+    <div class="card">
+      <div class="row"><span class="k">Current streak</span><span class="v num">${streak} day${streak===1?"":"s"}</span></div>
+      <div class="row"><span class="k">Training days this week</span><span class="v num">${trainDays}/7</span></div>
+      <div class="row"><span class="k">Protein on target this week</span><span class="v num">${protAdh.hit}/${protAdh.total} days</span></div>
     </div>
 
     <div class="section-head"><h2 class="eyebrow">Current Phase</h2></div>
@@ -857,6 +921,15 @@ function renderDash(){
         <button class="btn btn-block" id="btnLogMeasure">+ Log Measurements</button>
       </div>
     </div>
+
+    ${(chestPts.length>=2 || armPts.length>=2) ? `
+    <div class="section-head"><h2 class="eyebrow">Measurement Trends</h2></div>
+    <div class="card">
+      <div class="row-label" style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-faint); margin-bottom:4px;">Chest (in)</div>
+      <div class="chart-wrap">${sparklineSVG(chestPts, "chestIn", {height:70})}</div>
+      <div class="row-label" style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-faint); margin:14px 0 4px;">Arm (in)</div>
+      <div class="chart-wrap">${sparklineSVG(armPts, "armIn", {height:70})}</div>
+    </div>` : ``}
 
     ${el3===0 ? `<div class="card" style="border-color:var(--accent);"><div class="tip"><strong>Get started:</strong> log today's bodyweight and your waist/neck measurement — the dashboard fills in once you have data.</div></div>` : ``}
   `;
@@ -976,6 +1049,8 @@ function lastSessionFor(dayKey, exName){
 
 function renderTrain(){
   const el = document.getElementById("view-train");
+  const last7Sleep = STATE.sleepLog.slice(-7);
+  const sleepAvg = last7Sleep.length ? last7Sleep.reduce((s,e)=>s+e.hours,0)/last7Sleep.length : null;
   el.innerHTML = `
     <div class="section-head"><h2 class="eyebrow">Split</h2><span class="hint">${STATE.workoutLog.length} sessions logged</span></div>
     <div class="card" style="padding:0;">
@@ -1019,17 +1094,71 @@ function renderTrain(){
         }
       </div>
     </div>
+
+    <div class="section-head"><h2 class="eyebrow">Sleep &amp; Recovery</h2><span class="hint">${sleepAvg!=null? sleepAvg.toFixed(1)+" hr avg (7d)" : ""}</span></div>
+    <div class="card">
+      <div class="chart-wrap">${sparklineSVG(STATE.sleepLog.slice(-30), "hours", {emptyMsg:"Log at least two nights to see a trend."})}</div>
+      <div class="btn-row" style="margin-top:12px;"><button class="btn btn-accent btn-block" id="btnLogSleep">+ Log Sleep</button></div>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Lift Progress</h2><span class="hint">top set weight over time</span></div>
+    <div class="card">
+      <div class="field"><label>Exercise</label>
+        <select id="progressExercise">
+          ${ALL_EXERCISE_NAMES.map(n=>`<option value="${esc(n)}" ${n===progressExercise?"selected":""}>${esc(n)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="chart-wrap" id="progressChartWrap">${liftProgressChart(progressExercise)}</div>
+    </div>
   `;
   el.querySelectorAll(".day-card").forEach(card=>{
     card.onclick = ()=> openWorkoutModal(card.dataset.day);
   });
   document.getElementById("btnLogActivity").onclick = openLogActivityModal;
+  document.getElementById("btnLogSleep").onclick = openLogSleepModal;
+  document.getElementById("progressExercise").onchange = (e)=>{
+    progressExercise = e.target.value;
+    document.getElementById("progressChartWrap").innerHTML = liftProgressChart(progressExercise);
+  };
   el.querySelectorAll("#view-train .food-row .rm").forEach(btn=>{
     btn.onclick = ()=>{
       STATE.activityLog = STATE.activityLog.filter(a=>a.id!==btn.dataset.id);
       saveState(); toast("Removed"); renderAll();
     };
   });
+}
+
+const ALL_EXERCISE_NAMES = Array.from(new Set(SPLIT.flatMap(d=>d.exercises.map(e=>e.n))));
+let progressExercise = ALL_EXERCISE_NAMES[0];
+function liftProgressChart(exerciseName){
+  const points = STATE.workoutLog
+    .filter(s=>s.exercises.some(e=>e.n===exerciseName && e.sets.some(st=>st.w!=null)))
+    .map(s=>{
+      const ex = s.exercises.find(e=>e.n===exerciseName);
+      const top = Math.max(...ex.sets.filter(st=>st.w!=null).map(st=>st.w));
+      return {date:s.date, w:top};
+    })
+    .sort((a,b)=>a.date.localeCompare(b.date));
+  return sparklineSVG(points, "w", {emptyMsg:"Log this exercise in at least two sessions to see a trend."});
+}
+function openLogSleepModal(){
+  openModal(`
+    <div class="modal-head"><h3>Log Sleep</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Date</label><input type="date" id="slDate" value="${todayStr()}"></div>
+      <div class="field"><label>Hours slept</label><input type="number" step="0.25" id="slHours" placeholder="e.g. 7.5"></div>
+      <button class="btn btn-accent btn-block" id="slSave">Save</button>
+    </div>
+  `);
+  document.getElementById("slSave").onclick = ()=>{
+    const date = document.getElementById("slDate").value || todayStr();
+    const hours = parseFloat(document.getElementById("slHours").value);
+    if(!hours || hours<=0){ toast("Enter a valid number of hours"); return; }
+    STATE.sleepLog = STATE.sleepLog.filter(e=>e.date!==date);
+    STATE.sleepLog.push({date, hours});
+    STATE.sleepLog.sort((a,b)=>a.date.localeCompare(b.date));
+    saveState(); closeModal(); toast("Sleep logged"); renderAll();
+  };
 }
 
 function openLogActivityModal(){
