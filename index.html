@@ -426,6 +426,24 @@ const ACTIVITY_LEVELS = [
   { key:"very", label:"Physically demanding job/sport", mult:1.725 },
 ];
 
+const CARDIO_TYPES = [
+  {key:"walk", label:"Walk", met:3.5},
+  {key:"dogwalk", label:"Dog Walk", met:3.3},
+  {key:"run", label:"Run", met:9.5},
+  {key:"bike", label:"Bike", met:7.5},
+  {key:"hike", label:"Hike", met:6.0},
+  {key:"swim", label:"Swim", met:7.0},
+  {key:"soccer", label:"Soccer", met:7.5},
+  {key:"other", label:"Other", met:5.0},
+];
+function estimateActivityCals(typeKey, minutes, weightLb){
+  const t = CARDIO_TYPES.find(c=>c.key===typeKey) || CARDIO_TYPES[0];
+  const kg = weightLb*0.453592;
+  return Math.round(t.met * kg * (minutes/60));
+}
+function activityEntriesFor(date){ return STATE.activityLog.filter(a=>a.date===date); }
+function activityCalsFor(date){ return activityEntriesFor(date).reduce((s,a)=>s+a.cals, 0); }
+
 function defaultState(){
   return {
     profile: null, // {heightIn, age, sex, activity, neckIn, waistIn, goalWeightLb, phase, phaseStart, cutRatePct, bulkRateLb}
@@ -435,6 +453,7 @@ function defaultState(){
     myFoods: [],     // {id, name, brand, cals100, protein100, carbs100, fat100, defaultGrams, isCustom, lastUsed}
     foodLog: [],     // {id, date, foodId, name, grams, cals, protein, carbs, fat}
     myRecipes: [],   // {id, name, servings, ingredients:[{name, grams, cals100, protein100, carbs100, fat100, isCustom}]}
+    activityLog: [], // {id, date, type, minutes, distanceMi, note, cals}
     theme: "auto",
     appLockHash: null
   };
@@ -981,10 +1000,75 @@ function renderTrain(){
         }).join("")
       }
     </div>
+
+    <div class="section-head"><h2 class="eyebrow">Cardio &amp; Activity</h2><span class="hint">walks, runs, soccer, etc.</span></div>
+    <div class="card">
+      <div class="btn-row"><button class="btn btn-accent btn-block" id="btnLogActivity">+ Log Activity</button></div>
+      <div style="margin-top:12px;">
+        ${STATE.activityLog.length===0? `<div class="empty" style="padding:10px 0;">Nothing logged yet — walks, dog walks, runs, soccer, whatever gets you moving.</div>` :
+          STATE.activityLog.slice().reverse().slice(0,10).map(a=>{
+            const t = CARDIO_TYPES.find(c=>c.key===a.type);
+            return `<div class="food-row">
+              <div><div class="fname">${t?t.label:a.type}</div><div class="fmeta">${fmtDate(a.date)} · ${a.minutes} min${a.distanceMi?" · "+a.distanceMi+" mi":""}</div></div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span class="fmacro num">${a.cals} kcal</span>
+                <button class="rm" data-id="${a.id}">&times;</button>
+              </div>
+            </div>`;
+          }).join("")
+        }
+      </div>
+    </div>
   `;
   el.querySelectorAll(".day-card").forEach(card=>{
     card.onclick = ()=> openWorkoutModal(card.dataset.day);
   });
+  document.getElementById("btnLogActivity").onclick = openLogActivityModal;
+  el.querySelectorAll("#view-train .food-row .rm").forEach(btn=>{
+    btn.onclick = ()=>{
+      STATE.activityLog = STATE.activityLog.filter(a=>a.id!==btn.dataset.id);
+      saveState(); toast("Removed"); renderAll();
+    };
+  });
+}
+
+function openLogActivityModal(){
+  const p = STATE.profile;
+  let type = "walk", minutes = 30;
+  function render(){
+    const cals = estimateActivityCals(type, minutes, latestWeight()||p.startWeightLb);
+    openModal(`
+      <div class="modal-head"><h3>Log Activity</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <div class="modal-body">
+        <div class="field"><label>Date</label><input type="date" id="actDate" value="${todayStr()}"></div>
+        <div class="field"><label>Type</label>
+          <select id="actType">
+            ${CARDIO_TYPES.map(c=>`<option value="${c.key}" ${type===c.key?"selected":""}>${c.label}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field-grid">
+          <div class="field"><label>Duration (min)</label><input type="number" id="actMin" value="${minutes}"></div>
+          <div class="field"><label>Distance (mi, optional)</label><input type="number" step="0.1" id="actDist"></div>
+        </div>
+        <div class="qty-preview" style="grid-template-columns:1fr;">
+          <div class="qp"><div class="v num">${cals} kcal</div><div class="l">estimated burn</div></div>
+        </div>
+        <div class="field"><label>Note (optional)</label><input type="text" id="actNote" placeholder="e.g. with the dog around the park"></div>
+        <button class="btn btn-accent btn-block" id="actSave">Save</button>
+      </div>
+    `);
+    document.getElementById("actType").onchange = (e)=>{ type = e.target.value; render(); };
+    document.getElementById("actMin").oninput = (e)=>{ minutes = num(e.target.value)||0; render(); };
+    document.getElementById("actSave").onclick = ()=>{
+      const date = document.getElementById("actDate").value || todayStr();
+      const distanceMi = parseFloat(document.getElementById("actDist").value)||null;
+      const note = document.getElementById("actNote").value.trim();
+      const cals2 = estimateActivityCals(type, minutes, latestWeight()||p.startWeightLb);
+      STATE.activityLog.push({id:uid(), date, type, minutes, distanceMi, note, cals:cals2});
+      saveState(); closeModal(); toast("Activity logged"); renderAll();
+    };
+  }
+  render();
 }
 
 function openWorkoutModal(dayKey){
@@ -1364,7 +1448,9 @@ function renderFuel(){
   const proteinCals = plan.protein*4, carbCals = plan.carbs*4, fatCals = plan.fat*9;
   const entries = foodEntriesFor(fuelLogDate);
   const totals = foodTotalsFor(fuelLogDate);
-  const calPct = Math.min(100, Math.round(totals.cals/plan.cals*100));
+  const activeCals = activityCalsFor(fuelLogDate);
+  const adjustedTarget = plan.cals + activeCals;
+  const calPct = Math.min(100, Math.round(totals.cals/adjustedTarget*100));
   const proPct = Math.min(100, Math.round(totals.protein/plan.protein*100));
 
   el.innerHTML = `
@@ -1372,6 +1458,8 @@ function renderFuel(){
     <div class="card">
       <div class="row"><span class="k">Maintenance (TDEE)</span><span class="v num">${plan.base} kcal</span></div>
       <div class="row"><span class="k">Target calories</span><span class="v num">${plan.cals} kcal</span></div>
+      ${activeCals>0? `<div class="row"><span class="k">Earned from activity today</span><span class="v num">+${activeCals} kcal</span></div>
+      <div class="row"><span class="k">Adjusted target today</span><span class="v num">${adjustedTarget} kcal</span></div>` : ``}
       <div class="row"><span class="k">Expected rate</span><span class="v">${plan.rateLabel}</span></div>
       <div style="margin-top:14px;">
         <div class="macro-bar">
@@ -1389,8 +1477,8 @@ function renderFuel(){
 
     <div class="section-head"><h2 class="eyebrow">Food Log</h2><input type="date" id="fuelDate" value="${fuelLogDate}" style="border:none;background:none;color:var(--text-faint);font-size:11.5px;padding:0;"></div>
     <div class="card">
-      <div class="progress-row"><span>Calories</span><span class="num">${totals.cals} / ${plan.cals}</span></div>
-      <div class="progress-bar ${totals.cals>plan.cals*1.05?'over':''}"><div style="width:${calPct}%"></div></div>
+      <div class="progress-row"><span>Calories</span><span class="num">${totals.cals} / ${adjustedTarget}${activeCals>0?" (incl. activity)":""}</span></div>
+      <div class="progress-bar ${totals.cals>adjustedTarget*1.05?'over':''}"><div style="width:${calPct}%"></div></div>
       <div class="progress-row" style="margin-top:10px;"><span>Protein</span><span class="num">${totals.protein}g / ${plan.protein}g</span></div>
       <div class="progress-bar"><div style="width:${proPct}%"></div></div>
 
