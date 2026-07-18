@@ -303,6 +303,7 @@
     <section class="view" id="view-train"></section>
     <section class="view" id="view-photos"></section>
     <section class="view" id="view-fuel"></section>
+    <section class="view" id="view-life"></section>
     <section class="view" id="view-settings"></section>
   </main>
 
@@ -322,6 +323,10 @@
     <button data-tab="fuel">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c0 3-2 3-2 6a4 4 0 0 0 8 0c0-1.5-.8-2-1-3.5C11.7 4 10.5 3.3 9.5 2c0 1.8-1 2-2.5 1z"/><path d="M9 13v7a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-7"/></svg>
       <span>Fuel</span>
+    </button>
+    <button data-tab="life">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/><circle cx="12" cy="12" r="3.5"/></svg>
+      <span>Life</span>
     </button>
     <button data-tab="settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06A2 2 0 1 1 7.04 4.3l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.36.5.6 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -429,6 +434,7 @@ function defaultState(){
     workoutLog: [],  // {date, dayKey, exercises:[{n, sets:[{w,r}]}]}
     myFoods: [],     // {id, name, brand, cals100, protein100, carbs100, fat100, defaultGrams, isCustom, lastUsed}
     foodLog: [],     // {id, date, foodId, name, grams, cals, protein, carbs, fat}
+    myRecipes: [],   // {id, name, servings, ingredients:[{name, grams, cals100, protein100, carbs100, fat100, isCustom}]}
     theme: "auto",
     appLockHash: null
   };
@@ -1301,6 +1307,14 @@ function deleteFoodEntry(id){
   STATE.foodLog = STATE.foodLog.filter(e=>e.id!==id);
   saveState();
 }
+function recipeTotals(recipe){
+  return recipe.ingredients.reduce((t,ing)=>{
+    const scale = ing.isCustom ? 1 : (ing.grams||0)/100;
+    t.cals += ing.cals100*scale; t.protein += ing.protein100*scale;
+    t.carbs += ing.carbs100*scale; t.fat += ing.fat100*scale;
+    return t;
+  }, {cals:0, protein:0, carbs:0, fat:0});
+}
 function num(v){ const n = parseFloat(v); return isFinite(n) ? n : 0; }
 
 function normalizeOFFProduct(product){
@@ -1511,7 +1525,7 @@ function openLogFoodModal(date){
       return;
     }
 
-    const tabs = [["search","Search"],["barcode","Barcode"],["mine","My Foods"],["custom","Custom"]];
+    const tabs = [["search","Search"],["barcode","Barcode"],["recipes","Recipes"],["mine","My Foods"],["custom","Custom"]];
     let body = "";
     if(mode==="search"){
       body = `
@@ -1541,6 +1555,22 @@ function openLogFoodModal(date){
         </div>
         <div class="scale-note">Numbers are printed under the barcode's lines — most food packaging has this on the back or bottom.</div>
         <div id="lfResults">${resultsHTML()}</div>
+      `;
+    } else if(mode==="recipes"){
+      const recipes = STATE.myRecipes.slice().sort((a,b)=>a.name.localeCompare(b.name));
+      body = `
+        <button class="btn btn-accent btn-block" id="lfNewRecipe">+ New Recipe</button>
+        <div id="lfResults" style="margin-top:6px;">${
+          recipes.length===0? `<div class="empty">No recipes yet — build one from ingredients once, then log it in one tap from here on out.</div>` :
+          recipes.map((r,i)=>{
+            const t = recipeTotals(r);
+            const perCals = Math.round(t.cals/r.servings), perProtein = Math.round(t.protein/r.servings);
+            return `<div class="search-result" data-ri="${i}">
+              <div><div class="rname">${esc(r.name)}</div><div class="rmeta">${perCals} kcal · ${perProtein}g protein / serving · ${r.ingredients.length} ingredient${r.ingredients.length===1?"":"s"}</div></div>
+              <span class="chev">›</span>
+            </div>`;
+          }).join("")
+        }</div>
       `;
     } else if(mode==="mine"){
       const mine = STATE.myFoods.slice().sort((a,b)=>(b.lastUsed||"").localeCompare(a.lastUsed||""));
@@ -1593,6 +1623,14 @@ function openLogFoodModal(date){
   function wire(){
     document.querySelectorAll(".segmented button[data-m]").forEach(b=>{
       b.onclick = ()=>{ stopBarcodeScan(); mode = b.dataset.m; results=[]; searchState="idle"; render(); };
+    });
+    const newRecipeBtn = document.getElementById("lfNewRecipe");
+    if(newRecipeBtn) newRecipeBtn.onclick = ()=> openRecipeBuilderModal(null, render);
+    document.querySelectorAll("#lfResults .search-result[data-ri]").forEach(row=>{
+      row.onclick = ()=>{
+        const recipes = STATE.myRecipes.slice().sort((a,b)=>a.name.localeCompare(b.name));
+        openRecipeLogModal(recipes[+row.dataset.ri], date, render);
+      };
     });
     const scanBtn = document.getElementById("lfScanBtn");
     if(scanBtn) scanBtn.onclick = ()=> startBarcodeScan(async (code)=>{
@@ -1674,6 +1712,243 @@ function openLogFoodModal(date){
     });
   }
 
+  render();
+}
+
+/* ---- lightweight ingredient picker for recipes (search + my foods + custom, no barcode) ---- */
+function openIngredientPicker(onAdd){
+  let mode = "search";
+  let results = [];
+  let searchState = "idle";
+  let errorMsg = "";
+  let picked = null;
+  let grams = 100;
+
+  function macrosFor(food, g){
+    const scale = food.isCustom ? 1 : g/100;
+    return {
+      cals: Math.round(food.cals100*scale), protein: Math.round(food.protein100*scale*10)/10,
+      carbs: Math.round(food.carbs100*scale*10)/10, fat: Math.round(food.fat100*scale*10)/10,
+    };
+  }
+  function render(){
+    if(picked){
+      const m = macrosFor(picked, grams);
+      openModal(`
+        <div class="modal-head"><h3>${esc(picked.name)}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+        <div class="modal-body">
+          ${!picked.isCustom? `<div class="field"><label>Amount (g)</label><input type="number" id="ipGrams" value="${grams}"></div>` : ``}
+          <div class="qty-preview">
+            <div class="qp"><div class="v num">${m.cals}</div><div class="l">kcal</div></div>
+            <div class="qp"><div class="v num">${m.protein}g</div><div class="l">Protein</div></div>
+            <div class="qp"><div class="v num">${m.carbs}g</div><div class="l">Carbs</div></div>
+            <div class="qp"><div class="v num">${m.fat}g</div><div class="l">Fat</div></div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-block" id="ipBack">Back</button>
+            <button class="btn btn-accent btn-block" id="ipAdd">Add Ingredient</button>
+          </div>
+        </div>
+      `, {full:true});
+      const gramsInput = document.getElementById("ipGrams");
+      if(gramsInput) gramsInput.oninput = ()=>{ grams = num(gramsInput.value)||0; render(); };
+      document.getElementById("ipBack").onclick = ()=>{ picked=null; render(); };
+      document.getElementById("ipAdd").onclick = ()=>{
+        onAdd({
+          name: picked.name, grams: picked.isCustom? null : grams, isCustom: !!picked.isCustom,
+          cals100: picked.cals100, protein100: picked.protein100, carbs100: picked.carbs100, fat100: picked.fat100
+        });
+        closeModal();
+      };
+      return;
+    }
+    const tabs = [["search","Search"],["mine","My Foods"],["custom","Custom"]];
+    let body = "";
+    if(mode==="search"){
+      body = `
+        <div class="field"><label>Ingredient name</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="ipQuery" placeholder="e.g. brown rice" style="flex:1;">
+            <button class="btn btn-accent" id="ipSearchBtn">Search</button>
+          </div>
+        </div>
+        <div id="ipResults">${resultsHTML()}</div>
+      `;
+    } else if(mode==="mine"){
+      const mine = STATE.myFoods.slice().sort((a,b)=>(b.lastUsed||"").localeCompare(a.lastUsed||""));
+      body = `<div id="ipResults">${
+        mine.length===0? `<div class="empty">Nothing saved yet.</div>` :
+        mine.map((f,i)=>`<div class="search-result" data-i="${i}"><div><div class="rname">${esc(f.name)}</div><div class="rmeta">${f.isCustom?"custom · "+f.cals100+" kcal":Math.round(f.cals100)+" kcal / 100g"}</div></div><span class="chev">›</span></div>`).join("")
+      }</div>`;
+    } else {
+      body = `
+        <div class="field"><label>Name</label><input type="text" id="icName" placeholder="e.g. Homemade sauce"></div>
+        <div class="field-grid">
+          <div class="field"><label>Calories</label><input type="number" id="icCals"></div>
+          <div class="field"><label>Protein (g)</label><input type="number" id="icProtein"></div>
+          <div class="field"><label>Carbs (g)</label><input type="number" id="icCarbs"></div>
+          <div class="field"><label>Fat (g)</label><input type="number" id="icFat"></div>
+        </div>
+        <button class="btn btn-accent btn-block" id="icAdd">Add Ingredient</button>
+      `;
+    }
+    openModal(`
+      <div class="modal-head"><h3>Add Ingredient</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <div class="modal-body">
+        <div class="segmented">${tabs.map(([k,l])=>`<button data-m="${k}" class="${mode===k?"active":""}">${l}</button>`).join("")}</div>
+        ${body}
+      </div>
+    `, {full:true});
+    wire();
+  }
+  function resultsHTML(){
+    if(searchState==="loading") return `<div class="loading-row">Searching…</div>`;
+    if(searchState==="error") return `<div class="loading-row">${esc(errorMsg)}</div>`;
+    if(!results.length) return searchState==="done" ? `<div class="loading-row">No matches — try Custom instead.</div>` : "";
+    return results.map((f,i)=>`<div class="search-result" data-i="${i}"><div><div class="rname">${esc(f.name)}</div><div class="rmeta">${Math.round(f.cals100)} kcal / 100g</div></div><span class="chev">›</span></div>`).join("");
+  }
+  function wire(){
+    document.querySelectorAll(".segmented button[data-m]").forEach(b=>{
+      b.onclick = ()=>{ mode = b.dataset.m; results=[]; searchState="idle"; render(); };
+    });
+    const searchBtn = document.getElementById("ipSearchBtn");
+    if(searchBtn) searchBtn.onclick = async ()=>{
+      const q = document.getElementById("ipQuery").value.trim();
+      if(!q){ toast("Type something to search"); return; }
+      searchState = "loading"; document.getElementById("ipResults").innerHTML = resultsHTML();
+      try{ results = await offSearch(q); searchState = "done"; }
+      catch(e){ searchState = "error"; errorMsg = "Search failed — check your connection"; }
+      document.getElementById("ipResults").innerHTML = resultsHTML();
+      wireTaps();
+    };
+    const icAdd = document.getElementById("icAdd");
+    if(icAdd) icAdd.onclick = ()=>{
+      const name = document.getElementById("icName").value.trim();
+      const cals = num(document.getElementById("icCals").value);
+      if(!name || !cals){ toast("Add a name and calories at least"); return; }
+      picked = {
+        name, isCustom: true, cals100: cals, protein100: num(document.getElementById("icProtein").value),
+        carbs100: num(document.getElementById("icCarbs").value), fat100: num(document.getElementById("icFat").value)
+      };
+      render();
+    };
+    wireTaps();
+  }
+  function wireTaps(){
+    document.querySelectorAll("#ipResults .search-result[data-i]").forEach(row=>{
+      row.onclick = ()=>{
+        if(mode==="mine"){
+          const mine = STATE.myFoods.slice().sort((a,b)=>(b.lastUsed||"").localeCompare(a.lastUsed||""));
+          picked = mine[+row.dataset.i];
+        } else {
+          picked = results[+row.dataset.i];
+        }
+        grams = (picked && picked.defaultGrams) || 100;
+        render();
+      };
+    });
+  }
+  render();
+}
+
+/* ---- recipe builder ---- */
+function openRecipeBuilderModal(existing, onDone){
+  const draft = existing ? JSON.parse(JSON.stringify(existing)) : {id:uid(), name:"", servings:1, ingredients:[]};
+  function render(){
+    const t = recipeTotals(draft);
+    const perServ = draft.servings>0 ? {
+      cals: Math.round(t.cals/draft.servings), protein: Math.round(t.protein/draft.servings*10)/10,
+      carbs: Math.round(t.carbs/draft.servings*10)/10, fat: Math.round(t.fat/draft.servings*10)/10
+    } : {cals:0,protein:0,carbs:0,fat:0};
+    openModal(`
+      <div class="modal-head"><h3>${existing? "Edit Recipe":"New Recipe"}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <div class="modal-body">
+        <div class="field"><label>Recipe name</label><input type="text" id="rbName" value="${esc(draft.name)}" placeholder="e.g. Chicken rice bowl"></div>
+        <div class="field"><label>Servings this makes</label><input type="number" id="rbServings" min="1" value="${draft.servings}"></div>
+        <div>
+          ${draft.ingredients.length===0? `<div class="empty">No ingredients yet.</div>` :
+            draft.ingredients.map((ing,i)=>`
+              <div class="food-row">
+                <div><div class="fname">${esc(ing.name)}</div><div class="fmeta">${ing.grams? ing.grams+"g" : "fixed amount"}</div></div>
+                <button class="rm" data-i="${i}">&times;</button>
+              </div>`).join("")}
+        </div>
+        <button class="btn btn-block" id="rbAddIng">+ Add Ingredient</button>
+        <div class="qty-preview">
+          <div class="qp"><div class="v num">${perServ.cals}</div><div class="l">kcal/serv</div></div>
+          <div class="qp"><div class="v num">${perServ.protein}g</div><div class="l">Protein</div></div>
+          <div class="qp"><div class="v num">${perServ.carbs}g</div><div class="l">Carbs</div></div>
+          <div class="qp"><div class="v num">${perServ.fat}g</div><div class="l">Fat</div></div>
+        </div>
+        <button class="btn btn-accent btn-block" id="rbSave">Save Recipe</button>
+        ${existing? `<button class="btn btn-block" id="rbDelete" style="color:var(--danger)">Delete Recipe</button>`:``}
+      </div>
+    `, {full:true});
+    document.getElementById("rbName").oninput = (e)=>{ draft.name = e.target.value; };
+    document.getElementById("rbServings").onchange = (e)=>{ draft.servings = Math.max(1, parseInt(e.target.value)||1); render(); };
+    document.querySelectorAll(".food-row .rm").forEach(btn=>{
+      btn.onclick = ()=>{ draft.ingredients.splice(+btn.dataset.i,1); render(); };
+    });
+    document.getElementById("rbAddIng").onclick = ()=> openIngredientPicker((ing)=>{ draft.ingredients.push(ing); render(); });
+    document.getElementById("rbSave").onclick = ()=>{
+      draft.name = document.getElementById("rbName").value.trim() || "Untitled recipe";
+      draft.servings = Math.max(1, parseInt(document.getElementById("rbServings").value)||1);
+      if(!draft.ingredients.length){ toast("Add at least one ingredient"); return; }
+      const idx = STATE.myRecipes.findIndex(r=>r.id===draft.id);
+      if(idx>-1) STATE.myRecipes[idx] = draft; else STATE.myRecipes.push(draft);
+      saveState(); closeModal(); toast("Recipe saved");
+      if(onDone) onDone();
+    };
+    const delBtn = document.getElementById("rbDelete");
+    if(delBtn) delBtn.onclick = ()=>{
+      STATE.myRecipes = STATE.myRecipes.filter(r=>r.id!==draft.id);
+      saveState(); closeModal(); toast("Recipe deleted");
+      if(onDone) onDone();
+    };
+  }
+  render();
+}
+
+/* ---- log a recipe as a food entry ---- */
+function openRecipeLogModal(recipe, date, onDone){
+  let servings = 1;
+  function render(){
+    const t = recipeTotals(recipe);
+    const per = {cals:t.cals/recipe.servings, protein:t.protein/recipe.servings, carbs:t.carbs/recipe.servings, fat:t.fat/recipe.servings};
+    const shown = {
+      cals: Math.round(per.cals*servings), protein: Math.round(per.protein*servings*10)/10,
+      carbs: Math.round(per.carbs*servings*10)/10, fat: Math.round(per.fat*servings*10)/10
+    };
+    openModal(`
+      <div class="modal-head"><h3>${esc(recipe.name)}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <div class="modal-body">
+        <div class="field"><label>Servings</label><input type="number" step="0.5" id="rlServings" value="${servings}"></div>
+        <div class="qty-preview">
+          <div class="qp"><div class="v num">${shown.cals}</div><div class="l">kcal</div></div>
+          <div class="qp"><div class="v num">${shown.protein}g</div><div class="l">Protein</div></div>
+          <div class="qp"><div class="v num">${shown.carbs}g</div><div class="l">Carbs</div></div>
+          <div class="qp"><div class="v num">${shown.fat}g</div><div class="l">Fat</div></div>
+        </div>
+        <button class="btn btn-accent btn-block" id="rlAdd">Add to Log</button>
+        <div class="btn-row">
+          <button class="btn btn-block" id="rlEdit">Edit Recipe</button>
+          <button class="btn btn-block" id="rlDelete" style="color:var(--danger)">Delete Recipe</button>
+        </div>
+      </div>
+    `, {full:true});
+    document.getElementById("rlServings").oninput = (e)=>{ servings = num(e.target.value)||0; render(); };
+    document.getElementById("rlAdd").onclick = ()=>{
+      STATE.foodLog.push({id:uid(), date, foodId:recipe.id, name:recipe.name, grams:null, cals:shown.cals, protein:shown.protein, carbs:shown.carbs, fat:shown.fat});
+      saveState(); closeModal(); toast("Logged"); renderFuel();
+      if(onDone) onDone();
+    };
+    document.getElementById("rlEdit").onclick = ()=> openRecipeBuilderModal(recipe, onDone);
+    document.getElementById("rlDelete").onclick = ()=>{
+      STATE.myRecipes = STATE.myRecipes.filter(r=>r.id!==recipe.id);
+      saveState(); closeModal(); toast("Recipe deleted");
+      if(onDone) onDone();
+    };
+  }
   render();
 }
 
@@ -1826,7 +2101,67 @@ function renderAll(){
   renderTrain();
   renderPhotos();
   renderFuel();
+  renderLife();
   if(STATE.profile) renderSettings();
+}
+
+/* ============================= RENDER: LIFE ============================= */
+function renderLife(){
+  const el = document.getElementById("view-life");
+  el.innerHTML = `
+    <div class="section-head"><h2 class="eyebrow">Shower &amp; Hair</h2></div>
+    <div class="card">
+      <ul class="plain">
+        <li><strong>Shampoo 2–3x/week,</strong> not daily — it strips the natural oils that keep hair and scalp healthy. On off days, just rinse with water, especially after a sweaty session.</li>
+        <li><strong>Conditioner every wash,</strong> focused on mid-lengths to ends. Keep it off the roots or it'll weigh your hair down and look flat/greasy.</li>
+        <li><strong>Water temp:</strong> warm, not hot — hot water dries out both skin and hair over time.</li>
+        <li><strong>Post-workout:</strong> even on non-shampoo days, rinse hair and rinse/wipe down to clear sweat and salt before it sits for hours.</li>
+        <li><strong>Product pick:</strong> match shampoo to your hair — a moisturizing one if it's dry or curly, a clarifying one 1x/week if you're prone to oily scalp/product buildup.</li>
+      </ul>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Hairstyle</h2></div>
+    <div class="card">
+      <ul class="plain">
+        <li><strong>Low-maintenance options that read "athletic":</strong> textured crop, buzz cut, or a tapered side part — all fast to style, all work well with gym/soccer schedules where hair gets sweaty often.</li>
+        <li><strong>If your hair has natural wave or curl,</strong> a slightly longer textured cut (curtain-adjacent) can work well — ask a barber what suits your texture rather than forcing a straight-hair style onto different hair.</li>
+        <li><strong>Cut every 4–6 weeks</strong> to keep the shape — the style degrades faster than people expect, especially short cuts.</li>
+        <li><strong>Bring reference photos to your barber</strong> (including the ones that inspired your physique goal, if they show a haircut you like) — showing beats describing.</li>
+      </ul>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Skin Basics</h2></div>
+    <div class="card">
+      <ul class="plain">
+        <li><strong>Wash your face 2x/day</strong> (morning + before bed) with a gentle cleanser — more than that can irritate skin and cause more oil production, not less.</li>
+        <li><strong>Moisturize after washing,</strong> even if your skin feels oily — skipping it often makes oiliness worse.</li>
+        <li><strong>Sunscreen if you're outside training or playing soccer</strong> — SPF 30+, reapply if you're out for hours. This matters more than most guys think, both for skin health and for not aging your skin early.</li>
+        <li><strong>Shower soon after sweating heavily</strong> — sitting in sweat for hours is the biggest driver of body/back acne for lifters and athletes.</li>
+      </ul>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Getting Back Into Soccer</h2></div>
+    <div class="card">
+      <div class="tip" style="margin-bottom:10px;">Soccer is a great pairing with your physique goal — it builds the kind of functional, lean athleticism that a pure gym routine doesn't, and it's genuinely fun in a way the gym often isn't. Here's a simple 4-week path back in:</div>
+      <ul class="plain">
+        <li><strong>Week 1 — Touch:</strong> 15–20 min solo with a ball, 3–4x. Juggling, dribbling through cones/objects, passing against a wall. This rebuilds ball control fast without needing anyone else.</li>
+        <li><strong>Week 2 — Wind:</strong> add short interval runs (e.g. 30s hard / 90s walk × 8) twice this week — soccer conditioning is stop-start, very different from steady gym cardio, so this specifically rebuilds it.</li>
+        <li><strong>Week 3 — Play:</strong> find a small-sided pickup game or kick around with a friend at game intensity, but keep it short (30–40 min) so you're not sore for the gym split.</li>
+        <li><strong>Week 4 — Rejoin:</strong> look for a local pickup run, rec league, or open futsal night — search "[your city] pickup soccer" or apps like Popsa/Meetup often have local groups.</li>
+        <li><strong>Fit with your split:</strong> play/train soccer on a rest day or the same day as Legs if needed — avoid stacking it right before a heavy squat session.</li>
+      </ul>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Other Sports Worth Trying</h2><span class="hint">for the athletic look</span></div>
+    <div class="card">
+      <ul class="plain">
+        <li><strong>Basketball:</strong> similar stop-start conditioning to soccer, easy to find pickup games, builds vertical/explosiveness.</li>
+        <li><strong>Swimming:</strong> full-body conditioning with zero joint impact — great complement on a rest day.</li>
+        <li><strong>Rock climbing:</strong> builds the lean, wide-lat look directly, and grip/back strength that carries over to pulling lifts.</li>
+        <li><strong>Boxing or BJJ:</strong> brutal conditioning, builds core and rotational strength, and is its own confidence-building skill outside the gym.</li>
+      </ul>
+    </div>
+  `;
 }
 
 /* ============================= ONBOARDING ============================= */
