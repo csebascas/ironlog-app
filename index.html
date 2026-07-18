@@ -2,57 +2,61 @@
 <title>IRONLOG — Physique &amp; Training Tracker</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="theme-color" content="#111417" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="theme-color" content="#FAFAFA" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js" defer></script>
 <style>
   :root{
-    --bg:#F1F3F4; --surface:#FFFFFF; --surface-2:#F6F7F8; --border:#E2E5E8;
-    --text:#14181C; --text-dim:#5C636B; --text-faint:#8A9099;
-    --accent:#0EA989; --accent-strong:#0B8A70; --accent-soft:#0EA9891a;
-    --good:#3FAE6A; --good-soft:#3FAE6A20;
-    --warn:#C98A1E; --warn-soft:#C98A1E20;
-    --info:#3B7DD8; --info-soft:#3B7DD820;
+    --bg:#FAFAFA; --surface:#FFFFFF; --surface-2:#F4F4F5; --border:#EDEDEF;
+    --text:#131417; --text-dim:#6B6E76; --text-faint:#9A9DA3;
+    --accent:#6C5DD3; --accent-strong:#5648B0; --accent-soft:#6C5DD31a;
+    --good:#3FAE6A; --good-soft:#3FAE6A1a;
+    --warn:#E08A2B; --warn-soft:#E08A2B1a;
+    --info:#3B7DD8; --info-soft:#3B7DD81a;
     --danger:#D14F4F;
-    --radius:14px;
-    --shadow:0 1px 3px rgba(20,24,28,.06);
+    --cta:#131417; --cta-text:#FFFFFF;
+    --radius:16px;
+    --shadow:0 1px 2px rgba(20,20,25,.04);
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark){
     :root{
-      --bg:#111417; --surface:#181C20; --surface-2:#1F2429; --border:#2A2F35;
-      --text:#EDF0F2; --text-dim:#9AA2AA; --text-faint:#666E77;
-      --accent:#2DD4A7; --accent-strong:#5CE9C4; --accent-soft:#2DD4A726;
+      --bg:#0E0F11; --surface:#17181B; --surface-2:#1E2023; --border:#26282C;
+      --text:#F2F3F4; --text-dim:#9BA0A6; --text-faint:#65696F;
+      --accent:#8C7EF0; --accent-strong:#A79BF5; --accent-soft:#8C7EF026;
       --good:#5FBF77; --good-soft:#5FBF7726;
-      --warn:#E0B24C; --warn-soft:#E0B24C26;
+      --warn:#F0A050; --warn-soft:#F0A05026;
       --info:#5C9CE6; --info-soft:#5C9CE626;
       --danger:#E2685F;
-      --shadow:0 1px 4px rgba(0,0,0,.4);
+      --cta:#F2F3F4; --cta-text:#131417;
+      --shadow:0 1px 3px rgba(0,0,0,.35);
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"]{
-    --bg:#111417; --surface:#181C20; --surface-2:#1F2429; --border:#2A2F35;
-    --text:#EDF0F2; --text-dim:#9AA2AA; --text-faint:#666E77;
-    --accent:#2DD4A7; --accent-strong:#5CE9C4; --accent-soft:#2DD4A726;
+    --bg:#0E0F11; --surface:#17181B; --surface-2:#1E2023; --border:#26282C;
+    --text:#F2F3F4; --text-dim:#9BA0A6; --text-faint:#65696F;
+    --accent:#8C7EF0; --accent-strong:#A79BF5; --accent-soft:#8C7EF026;
     --good:#5FBF77; --good-soft:#5FBF7726;
-    --warn:#E0B24C; --warn-soft:#E0B24C26;
+    --warn:#F0A050; --warn-soft:#F0A05026;
     --info:#5C9CE6; --info-soft:#5C9CE626;
     --danger:#E2685F;
-    --shadow:0 1px 4px rgba(0,0,0,.4);
+    --cta:#F2F3F4; --cta-text:#131417;
+    --shadow:0 1px 3px rgba(0,0,0,.35);
     color-scheme: dark;
   }
   :root[data-theme="light"]{
-    --bg:#F1F3F4; --surface:#FFFFFF; --surface-2:#F6F7F8; --border:#E2E5E8;
-    --text:#14181C; --text-dim:#5C636B; --text-faint:#8A9099;
-    --accent:#0EA989; --accent-strong:#0B8A70; --accent-soft:#0EA9891a;
-    --good:#3FAE6A; --good-soft:#3FAE6A20;
-    --warn:#C98A1E; --warn-soft:#C98A1E20;
-    --info:#3B7DD8; --info-soft:#3B7DD820;
+    --bg:#FAFAFA; --surface:#FFFFFF; --surface-2:#F4F4F5; --border:#EDEDEF;
+    --text:#131417; --text-dim:#6B6E76; --text-faint:#9A9DA3;
+    --accent:#6C5DD3; --accent-strong:#5648B0; --accent-soft:#6C5DD31a;
+    --good:#3FAE6A; --good-soft:#3FAE6A1a;
+    --warn:#E08A2B; --warn-soft:#E08A2B1a;
+    --info:#3B7DD8; --info-soft:#3B7DD81a;
     --danger:#D14F4F;
-    --shadow:0 1px 3px rgba(20,24,28,.06);
+    --cta:#131417; --cta-text:#FFFFFF;
+    --shadow:0 1px 2px rgba(20,20,25,.04);
     color-scheme: light;
   }
 
@@ -116,32 +120,32 @@
     font-size:15.5px; font-weight:750; text-transform:none; letter-spacing:normal;
     color:var(--text); display:flex; align-items:center; gap:7px;
   }
-  .section-head h2 svg{width:16px; height:16px; color:var(--accent); flex:none;}
   .section-head .hint{font-size:11.5px; color:var(--text-faint);}
 
   .card{
     background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
-    padding:14px; box-shadow:var(--shadow);
+    padding:16px; box-shadow:var(--shadow);
   }
   .card + .card{margin-top:0;}
   .card-title{font-size:13.5px; font-weight:700; color:var(--text); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;}
 
   .row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
-  .row + .row{margin-top:8px; padding-top:8px; border-top:1px solid var(--border);}
+  .row + .row{margin-top:9px; padding-top:9px; border-top:1px solid var(--border);}
   .row .k{font-size:13px; color:var(--text-dim);}
-  .row .v{font-size:14px; font-weight:700;}
+  .row .v{font-size:14.5px; font-weight:700;}
 
   .btn{
-    appearance:none; border:1px solid var(--border); background:var(--surface-2); color:var(--text);
-    padding:10px 14px; border-radius:11px; font-size:13.5px; font-weight:700; cursor:pointer;
+    appearance:none; border:1px solid transparent; background:var(--surface-2); color:var(--text);
+    padding:11px 16px; border-radius:999px; font-size:13.5px; font-weight:700; cursor:pointer;
     display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    transition:transform .12s ease, opacity .12s ease;
   }
-  .btn:active{transform:scale(.98);}
+  .btn:active{transform:scale(.97); opacity:.85;}
   .btn:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
-  .btn-accent{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .btn-accent{background:var(--cta); border-color:var(--cta); color:var(--cta-text);}
   .btn-block{width:100%;}
   .btn-ghost{background:transparent;}
-  .btn-sm{padding:6px 10px; font-size:12px;}
+  .btn-sm{padding:7px 12px; font-size:12px;}
   .btn-row{display:flex; gap:8px;}
 
   .field{display:flex; flex-direction:column; gap:5px;}
@@ -157,9 +161,9 @@
   .chart-empty{text-align:center; color:var(--text-faint); font-size:12.5px; padding:30px 0;}
 
   /* segmented control */
-  .segmented{display:flex; background:var(--surface-2); border:1px solid var(--border); border-radius:11px; padding:3px;}
-  .segmented button{flex:1; border:none; background:transparent; padding:8px 6px; font-size:12.5px; font-weight:700; border-radius:8px; color:var(--text-dim); cursor:pointer; transition:background .15s ease, color .15s ease;}
-  .segmented button.active{background:var(--accent); color:#fff;}
+  .segmented{display:flex; background:var(--surface-2); border-radius:999px; padding:3px;}
+  .segmented button{flex:1; border:none; background:transparent; padding:8px 6px; font-size:12.5px; font-weight:700; border-radius:999px; color:var(--text-dim); cursor:pointer; transition:background .15s ease, color .15s ease;}
+  .segmented button.active{background:var(--cta); color:var(--cta-text);}
 
   /* day list (train tab) */
   .day-card{display:flex; align-items:center; justify-content:space-between; padding:13px 14px; cursor:pointer;}
@@ -1038,7 +1042,7 @@ function renderDash(){
   const armPts = STATE.measureLog.filter(m=>m.armIn!=null).map(m=>({date:m.date, armIn:m.armIn}));
 
   el.innerHTML = `
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>Weight Trend</h2><span class="hint">last 30 entries</span></div>
+    <div class="section-head"><h2 class="eyebrow">Weight Trend</h2><span class="hint">last 30 entries</span></div>
     <div class="card">
       <div class="chart-wrap">${weightChart()}</div>
       <div class="btn-row" style="margin-top:12px;">
@@ -1046,14 +1050,14 @@ function renderDash(){
       </div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8.5 12.5 11 15 16 9"/></svg>Consistency</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Consistency</h2></div>
     <div class="card">
       <div class="row"><span class="k">Current streak</span><span class="v num">${streak} day${streak===1?"":"s"}</span></div>
       <div class="row"><span class="k">Training days this week</span><span class="v num">${trainDays}/7</span></div>
       <div class="row"><span class="k">Protein on target this week</span><span class="v num">${protAdh.hit}/${protAdh.total} days</span></div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1 4-3 5-3 9a3 3 0 006 0c0-1.5-1-2-1-3.5 2 1 3.5 3 3.5 6a5.5 5.5 0 01-11 0c0-4 2-6 3-8.5C10 4 11 3 12 2z"/></svg>Current Phase</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Current Phase</h2></div>
     <div class="card">
       <div class="row"><span class="k">Phase</span><span class="v" style="text-transform:capitalize">${p.phase}</span></div>
       <div class="row"><span class="k">Started</span><span class="v num">${fmtDateLong(p.phaseStart)}</span></div>
@@ -1065,7 +1069,7 @@ function renderDash(){
       </div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Weekly Rate</h2><span class="hint">one block = one week</span></div>
+    <div class="section-head"><h2 class="eyebrow">Weekly Rate</h2><span class="hint">one block = one week</span></div>
     <div class="card">
       ${weekBlocks.length===0 ? `<div class="empty">Blocks fill in once you're a week into this phase with weigh-ins logged.</div>` : `
       <div class="block-row">
@@ -1080,14 +1084,14 @@ function renderDash(){
     </div>
 
     ${goalBlocks ? `
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor"/></svg>Progress to Goal</h2><span class="hint">${Math.round(goalBlocks.pct)}% there</span></div>
+    <div class="section-head"><h2 class="eyebrow">Progress to Goal</h2><span class="hint">${Math.round(goalBlocks.pct)}% there</span></div>
     <div class="card">
       <div class="block-row">
         ${Array.from({length:goalBlocks.totalBlocks}).map((_,i)=>`<div class="block ${i<goalBlocks.filled?'fill':'none'}"></div>`).join("")}
       </div>
     </div>` : ``}
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Body Composition</h2><span class="hint">Navy method estimate</span></div>
+    <div class="section-head"><h2 class="eyebrow">Body Composition</h2><span class="hint">Navy method estimate</span></div>
     <div class="card">
       ${currentBF()!=null ? `
       <div class="row"><span class="k">Estimated body fat</span><span class="v num">${currentBF().toFixed(1)}%</span></div>
@@ -1099,7 +1103,7 @@ function renderDash(){
     </div>
 
     ${(chestPts.length>=2 || armPts.length>=2) ? `
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="1.5"/><path d="M7 8v3M11 8v3M15 8v3M19 8v3"/></svg>Measurement Trends</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Measurement Trends</h2></div>
     <div class="card">
       <div class="row-label" style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-faint); margin-bottom:4px;">Chest (in)</div>
       <div class="chart-wrap">${sparklineSVG(chestPts, "chestIn", {height:70})}</div>
@@ -1228,7 +1232,7 @@ function renderTrain(){
   const last7Sleep = STATE.sleepLog.slice(-7);
   const sleepAvg = last7Sleep.length ? last7Sleep.reduce((s,e)=>s+e.hours,0)/last7Sleep.length : null;
   el.innerHTML = `
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="10" width="3" height="4" rx="1" fill="currentColor" stroke="none"/><rect x="20" y="10" width="3" height="4" rx="1" fill="currentColor" stroke="none"/><path d="M6 12h12M6 8v8M18 8v8"/></svg>Split</h2><span class="hint">${STATE.workoutLog.length} sessions logged</span></div>
+    <div class="section-head"><h2 class="eyebrow">Split</h2><span class="hint">${STATE.workoutLog.length} sessions logged</span></div>
     <div class="card" style="padding:0;">
       ${SPLIT.map((d,i)=>`
         <div class="day-card" data-day="${d.key}" style="${i>0?'border-top:1px solid var(--border);':''}">
@@ -1241,7 +1245,7 @@ function renderTrain(){
       `).join("")}
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>History</h2></div>
+    <div class="section-head"><h2 class="eyebrow">History</h2></div>
     <div class="card">
       ${STATE.workoutLog.length===0? `<div class="empty">No sessions logged yet. Tap a day above to start one.</div>` :
         STATE.workoutLog.slice().reverse().slice(0,8).map(s=>{
@@ -1252,7 +1256,7 @@ function renderTrain(){
       }
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.35-9.5-8.5C.7 8 2 4.5 5.5 4a5 5 0 016.5 2 5 5 0 016.5-2C22 4.5 23.3 8 21.5 11.5 19 15.65 12 20 12 20z"/></svg>Cardio &amp; Activity</h2><span class="hint">walks, runs, soccer, etc.</span></div>
+    <div class="section-head"><h2 class="eyebrow">Cardio &amp; Activity</h2><span class="hint">walks, runs, soccer, etc.</span></div>
     <div class="card">
       <div class="btn-row"><button class="btn btn-accent btn-block" id="btnLogActivity">+ Log Activity</button></div>
       <div style="margin-top:12px;">
@@ -1271,13 +1275,13 @@ function renderTrain(){
       </div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>Sleep &amp; Recovery</h2><span class="hint">${sleepAvg!=null? sleepAvg.toFixed(1)+" hr avg (7d)" : ""}</span></div>
+    <div class="section-head"><h2 class="eyebrow">Sleep &amp; Recovery</h2><span class="hint">${sleepAvg!=null? sleepAvg.toFixed(1)+" hr avg (7d)" : ""}</span></div>
     <div class="card">
       <div class="chart-wrap">${sparklineSVG(STATE.sleepLog.slice(-30), "hours", {emptyMsg:"Log at least two nights to see a trend."})}</div>
       <div class="btn-row" style="margin-top:12px;"><button class="btn btn-accent btn-block" id="btnLogSleep">+ Log Sleep</button></div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>Lift Progress</h2><span class="hint">top set weight over time</span></div>
+    <div class="section-head"><h2 class="eyebrow">Lift Progress</h2><span class="hint">top set weight over time</span></div>
     <div class="card">
       <div class="field"><label>Exercise</label>
         <select id="progressExercise">
@@ -1487,7 +1491,7 @@ async function renderPhotos(){
       <div class="tip"><strong>Time for an update:</strong> your last photo was ${daysSince} days ago. A fresh set (same angles, same lighting if you can) keeps your comparisons meaningful.</div>
     </div>` : ``}
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="18" height="13" rx="2"/><path d="M8 6.5l1.4-2h5.2l1.4 2"/><circle cx="12" cy="13" r="3.2"/></svg>Progress Photos</h2><span class="hint">${photoCache.length} saved</span></div>
+    <div class="section-head"><h2 class="eyebrow">Progress Photos</h2><span class="hint">${photoCache.length} saved</span></div>
     <div class="card">
       <div class="btn-row">
         <button class="btn btn-accent btn-block" id="btnStartShoot">Guided Photo Set</button>
@@ -1498,7 +1502,7 @@ async function renderPhotos(){
       <div class="tip" style="margin-top:10px;">For a written read on any photo, send it to Claude directly in a chat — that's free with your normal Claude usage. This tab stores and compares photos on-device; it doesn't analyze them itself.</div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7.5" height="16" rx="1.5"/><rect x="13.5" y="4" width="7.5" height="16" rx="1.5"/></svg>Compare</h2><span class="hint">tap two photos below</span></div>
+    <div class="section-head"><h2 class="eyebrow">Compare</h2><span class="hint">tap two photos below</span></div>
     <div class="card">
       <div class="compare-wrap">
         <div>
@@ -1512,7 +1516,7 @@ async function renderPhotos(){
       </div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.2"/></svg>Library</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Library</h2></div>
     ${photoCache.length===0? `<div class="empty">No photos yet. Try Guided Photo Set for a consistent front/side/back baseline.</div>` :
       `<div class="photo-grid" id="photoGrid">
         ${photoCache.map(p=>`
@@ -1899,7 +1903,7 @@ function renderFuel(){
   const proPct = Math.min(100, Math.round(totals.protein/plan.protein*100));
 
   el.innerHTML = `
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1 4-3 5-3 9a3 3 0 006 0c0-1.5-1-2-1-3.5 2 1 3.5 3 3.5 6a5.5 5.5 0 01-11 0c0-4 2-6 3-8.5C10 4 11 3 12 2z"/></svg>Daily Targets</h2><span class="hint" style="text-transform:capitalize">${p.phase} phase</span></div>
+    <div class="section-head"><h2 class="eyebrow">Daily Targets</h2><span class="hint" style="text-transform:capitalize">${p.phase} phase</span></div>
     <div class="card">
       ${calorieDiagramHTML(plan.base, plan.cals)}
       ${activeCals>0? `<div class="row"><span class="k">Earned from activity today</span><span class="v num">+${activeCals} kcal</span></div>
@@ -1919,7 +1923,7 @@ function renderFuel(){
       </div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4" cy="6" r="1.3" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.3" fill="currentColor" stroke="none"/></svg>Food Log</h2><input type="date" id="fuelDate" value="${fuelLogDate}" style="border:none;background:none;color:var(--text-faint);font-size:11.5px;padding:0;"></div>
+    <div class="section-head"><h2 class="eyebrow">Food Log</h2><input type="date" id="fuelDate" value="${fuelLogDate}" style="border:none;background:none;color:var(--text-faint);font-size:11.5px;padding:0;"></div>
     <div class="card">
       <div class="progress-row"><span>Calories</span><span class="num">${totals.cals} / ${adjustedTarget}${activeCals>0?" (incl. activity)":""}</span></div>
       <div class="progress-bar ${totals.cals>adjustedTarget*1.05?'over':''}"><div style="width:${calPct}%"></div></div>
@@ -1956,12 +1960,12 @@ function renderFuel(){
       <div class="tip"><strong>Worth a look:</strong> based on your latest measurements (~${bf.toFixed(1)}% BF), <strong style="text-transform:capitalize">${rec}</strong> is the more typical recommendation right now. You're currently on <strong style="text-transform:capitalize">${p.phase}</strong> — that's fine if it's deliberate, otherwise consider switching in Dashboard.</div>
     </div>` : ``}
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor"/></svg>Why This Phase, Specifically</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Why This Phase, Specifically</h2></div>
     <div class="card">
       <div class="tip">${explainPhaseChoice(bf, latestWeight()||p.startWeightLb, p.goalWeightLb || goalWeightFromLook(p.lookMuscle||"athletic", p.lookLean||"defined", p.heightIn), {muscleKey: p.lookMuscle||"athletic", leanKey: p.lookLean||"defined"})}</div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13M13 4l4 4-4 4"/><path d="M20 16H7M11 12l-4 4 4 4"/></svg>Bulk vs Cut</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Bulk vs Cut</h2></div>
     <div class="card">
       <div style="display:flex; align-items:stretch; gap:8px; margin-bottom:12px;">
         <div style="flex:1; text-align:center; padding:12px 8px; background:var(--warn-soft); border-radius:8px;">
@@ -1988,7 +1992,7 @@ function renderFuel(){
       </details>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20C5 10 12 4 20 4c0 8-6 15-16 16z"/><path d="M5 20c3-5 7-8 12-11"/></svg>Food Guide</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Food Guide</h2></div>
     <div class="card">
       <div class="tip">Consistency beats precision — hitting your calories within ~100 kcal most days matters more than a perfect macro split some days.</div>
       <details class="edu" style="margin-top:10px;">
@@ -2491,7 +2495,7 @@ function renderSettings(){
   const el = document.getElementById("view-settings");
   const p = STATE.profile;
   el.innerHTML = `
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4.5 5-6 8-6s6.5 1.5 8 6"/></svg>Profile</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Profile</h2></div>
     <div class="card">
       <div class="row"><span class="k">Height</span><span class="v num">${Math.floor(p.heightIn/12)}′ ${(p.heightIn%12).toFixed(1)}″</span></div>
       <div class="row"><span class="k">Age</span><span class="v num">${p.age}</span></div>
@@ -2499,7 +2503,7 @@ function renderSettings(){
       <div class="btn-row" style="margin-top:12px;"><button class="btn btn-block" id="btnEditProfile">Edit Profile</button></div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>AI Features</h2><span class="hint">${STATE.apiKey? "Connected" : "Not connected"}</span></div>
+    <div class="section-head"><h2 class="eyebrow">AI Features</h2><span class="hint">${STATE.apiKey? "Connected" : "Not connected"}</span></div>
     <div class="card">
       <div class="tip">Paste your Anthropic API key to unlock automatic analysis for progress photos (Photos tab) and meals (Snap Meal in Fuel). Sent directly from your phone to Anthropic when you use those features — never stored or sent anywhere else. Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>, and set a spending limit under Settings → Limits so cost is capped no matter what.</div>
       <div class="key-row" style="margin-top:10px; display:flex; gap:8px;">
@@ -2510,7 +2514,7 @@ function renderSettings(){
       ${STATE.apiKey? `<button class="btn btn-block" id="btnRemoveKey" style="margin-top:8px; color:var(--danger);">Remove Key</button>` : ``}
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.5M12 19v2.5M4.5 12H2M22 12h-2.5M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></svg>Appearance</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Appearance</h2></div>
     <div class="card">
       <div class="segmented">
         <button data-t="auto" class="${STATE.theme==="auto"?"active":""}">Auto</button>
@@ -2519,7 +2523,7 @@ function renderSettings(){
       </div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>Security</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Security</h2></div>
     <div class="card">
       <div class="row"><span class="k">App Lock</span><span class="v">${STATE.appLockHash? "On" : "Off"}</span></div>
       <div class="btn-row" style="margin-top:12px;">
@@ -2530,7 +2534,7 @@ function renderSettings(){
       <div class="tip" style="margin-top:10px;">A PIN just locks this app's screen on this device — there's no account or server. If you forget it, the only recovery is erasing all local data.</div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5V12c0 1.7 3.6 3 8 3s8-1.3 8-3V5.5"/><path d="M4 12v6.5c0 1.7 3.6 3 8 3s8-1.3 8-3V12"/></svg>Data</h2><span class="hint">stored only on this device</span></div>
+    <div class="section-head"><h2 class="eyebrow">Data</h2><span class="hint">stored only on this device</span></div>
     <div class="card">
       <div class="tip">Photos and logs live in this browser's local storage. They will not sync to another device automatically — export a backup if you switch phones or clear browser data.</div>
       <div class="btn-row" style="margin-top:12px;">
@@ -2663,7 +2667,7 @@ function renderAll(){
 function renderLife(){
   const el = document.getElementById("view-life");
   el.innerHTML = `
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c3.5 4.5 6 8 6 11.5A6 6 0 016 14.5C6 11 8.5 7.5 12 3z"/></svg>Shower &amp; Hair</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Shower &amp; Hair</h2></div>
     <div class="card">
       <ul class="plain">
         <li><strong>Shampoo 2–3x/week,</strong> not daily — it strips the natural oils that keep hair and scalp healthy. On off days, just rinse with water, especially after a sweaty session.</li>
@@ -2674,7 +2678,7 @@ function renderLife(){
       </ul>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M20 4L8.5 12M8.5 12L20 20M8 12h.01"/></svg>Hairstyle</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Hairstyle</h2></div>
     <div class="card">
       <ul class="plain">
         <li><strong>Low-maintenance options that read "athletic":</strong> textured crop, buzz cut, or a tapered side part — all fast to style, all work well with gym/soccer schedules where hair gets sweaty often.</li>
@@ -2684,7 +2688,7 @@ function renderLife(){
       </ul>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Skin Basics</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Skin Basics</h2></div>
     <div class="card">
       <ul class="plain">
         <li><strong>Wash your face 2x/day</strong> (morning + before bed) with a gentle cleanser — more than that can irritate skin and cause more oil production, not less.</li>
@@ -2694,7 +2698,7 @@ function renderLife(){
       </ul>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8l3.5 2.5-1.3 4h-4.4l-1.3-4z"/><path d="M12 3v5M4.5 9l3-1M4.5 15l3 1M19.5 9l-3-1M19.5 15l-3 1M12 21v-5"/></svg>Getting Back Into Soccer</h2></div>
+    <div class="section-head"><h2 class="eyebrow">Getting Back Into Soccer</h2></div>
     <div class="card">
       <div class="tip" style="margin-bottom:10px;">Soccer is a great pairing with your physique goal — it builds the kind of functional, lean athleticism that a pure gym routine doesn't, and it's genuinely fun in a way the gym often isn't. Here's a simple 4-week path back in:</div>
       <ul class="plain">
@@ -2706,7 +2710,7 @@ function renderLife(){
       </ul>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 01-10 0V4z"/><path d="M7 6H4a3 3 0 003 3M17 6h3a3 3 0 01-3 3"/><path d="M12 14v3M9 21h6M9.5 21c0-2 1-2.5 2.5-2.5s2.5.5 2.5 2.5"/></svg>Other Sports Worth Trying</h2><span class="hint">for the athletic look</span></div>
+    <div class="section-head"><h2 class="eyebrow">Other Sports Worth Trying</h2><span class="hint">for the athletic look</span></div>
     <div class="card">
       <ul class="plain">
         <li><strong>Basketball:</strong> similar stop-start conditioning to soccer, easy to find pickup games, builds vertical/explosiveness.</li>
