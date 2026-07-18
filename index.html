@@ -185,6 +185,13 @@
   .photo-thumb.is-goal{border-color:var(--accent);}
   .photo-thumb .goal-star{position:absolute; top:4px; right:4px; color:var(--accent-strong); font-size:11px; text-shadow:0 0 3px rgba(0,0,0,.6);}
 
+  .analysis-box{background:var(--surface-2); border:1px solid var(--border); border-radius:6px; padding:11px 12px; font-size:13px; line-height:1.55; color:var(--text-dim);}
+  .analysis-box .analysis-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .analysis-box .analysis-head span{font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent-strong); font-weight:800;}
+  .spinner{width:14px; height:14px; border-radius:50%; border:2px solid rgba(255,255,255,.35); border-top-color:#fff; display:inline-block; animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion: reduce){ .spinner{animation:none;} }
+
   .compare-wrap{display:grid; grid-template-columns:1fr 1fr; gap:6px;}
   .compare-slot{aspect-ratio:3/4; border-radius:6px; border:1px solid var(--border); background:var(--surface-2); display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative;}
   .compare-slot img{width:100%; height:100%; object-fit:cover;}
@@ -492,7 +499,8 @@ function defaultState(){
     activityLog: [], // {id, date, type, minutes, distanceMi, note, cals}
     sleepLog: [],    // {date, hours}
     theme: "auto",
-    appLockHash: null
+    appLockHash: null,
+    apiKey: ""
   };
 }
 async function hashPin(pin){
@@ -594,6 +602,41 @@ function openModal(html, opts){
   document.getElementById("modalVeil").classList.add("active");
 }
 function closeModal(){ stopBarcodeScan(); document.getElementById("modalVeil").classList.remove("active"); }
+
+/* ---- Claude vision API (user's own key, direct from browser) ---- */
+const AI_MODEL = "claude-haiku-4-5-20251001";
+async function callClaudeVision(apiKey, maxTokens, textPrompt, images){
+  const content = [{type:"text", text: textPrompt}];
+  (images||[]).forEach(img=>{
+    const match = /^data:(.*?);base64,(.*)$/.exec(img.dataURL);
+    if(!match) return;
+    if(img.label) content.push({type:"text", text: img.label});
+    content.push({type:"image", source:{type:"base64", media_type:match[1], data:match[2]}});
+  });
+  try{
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{
+        "content-type":"application/json",
+        "x-api-key": apiKey,
+        "anthropic-version":"2023-06-01",
+        "anthropic-dangerous-direct-browser-access":"true"
+      },
+      body: JSON.stringify({model:AI_MODEL, max_tokens:maxTokens, messages:[{role:"user", content}]})
+    });
+    if(!res.ok){
+      if(res.status===401) return {ok:false, message:"Invalid API key — check Settings"};
+      if(res.status===429) return {ok:false, message:"Rate limited or over your spending cap — try again later"};
+      return {ok:false, message:"Request failed ("+res.status+")"};
+    }
+    const data = await res.json();
+    const text = (data.content||[]).map(b=>b.text).filter(Boolean).join("").trim();
+    if(!text) return {ok:false, message:"No response — try again"};
+    return {ok:true, text};
+  }catch(e){
+    return {ok:false, message:"Network error — check your connection"};
+  }
+}
 
 /* ---- camera barcode scanning (ZXing) ---- */
 let zxingReader = null;
@@ -1591,11 +1634,12 @@ function resizeImage(file, maxDim, quality){
 function openPhotoActionModal(id){
   const p = photoCache.find(x=>x.id===id);
   if(!p) return;
+  const hasKey = !!(STATE.apiKey && STATE.apiKey.trim());
   openModal(`
     <div class="modal-head"><h3>${fmtDateLong(p.date)} · ${p.angle? p.angle+" · ":""}${p.tag}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
     <div class="modal-body photo-viewer">
       <img src="${p.dataURL}">
-      <div class="tip">Want a read on this photo? Open a chat with Claude (this app, claude.ai, or the Claude mobile app) and send it there — no extra cost, it's covered by your normal Claude usage.</div>
+      <div id="paAnalysisSlot">${renderPhotoAnalysisSlot(p)}</div>
       <div class="btn-row">
         <button class="btn btn-block" id="paCompareA">Set as Before</button>
         <button class="btn btn-block" id="paCompareB">Set as After</button>
@@ -1611,6 +1655,73 @@ function openPhotoActionModal(id){
     if(compareSel[1]&&compareSel[1].id===p.id) compareSel[1]=null;
     closeModal(); toast("Photo deleted"); renderPhotos();
   };
+  wirePhotoAnalysisButton(p);
+}
+
+function renderPhotoAnalysisSlot(p){
+  const hasKey = !!(STATE.apiKey && STATE.apiKey.trim());
+  if(p.analysis){
+    return `
+      <div class="analysis-box">
+        <div class="analysis-head"><span>AI Read — ${fmtDate(p.analysis.date)}</span></div>
+        ${esc(p.analysis.text)}
+      </div>
+      ${hasKey ? `<button class="btn btn-block" id="paAnalyze">Re-analyze</button>` : ``}
+    `;
+  }
+  if(!hasKey) return `<button class="btn btn-block" id="paGoKey">Add API key in Settings to enable AI analysis</button>`;
+  return `<button class="btn btn-accent btn-block" id="paAnalyze">Analyze with AI</button>`;
+}
+function wirePhotoAnalysisButton(p){
+  const goKey = document.getElementById("paGoKey");
+  if(goKey) goKey.onclick = ()=>{ closeModal(); switchTab("settings"); };
+  const analyzeBtn = document.getElementById("paAnalyze");
+  if(analyzeBtn) analyzeBtn.onclick = async ()=>{
+    analyzeBtn.disabled = true;
+    analyzeBtn.innerHTML = `<span class="spinner"></span> Analyzing…`;
+    const result = await analyzePhysiquePhoto(p);
+    if(result.ok){
+      p.analysis = result.analysis;
+      await addPhoto(p);
+      const idx = photoCache.findIndex(x=>x.id===p.id);
+      if(idx>-1) photoCache[idx] = p;
+      document.getElementById("paAnalysisSlot").innerHTML = renderPhotoAnalysisSlot(p);
+      wirePhotoAnalysisButton(p);
+      toast("Analysis ready");
+    } else {
+      toast(result.message);
+      analyzeBtn.disabled = false;
+      analyzeBtn.innerHTML = p.analysis ? "Re-analyze" : "Analyze with AI";
+    }
+  };
+}
+async function analyzePhysiquePhoto(photo){
+  const apiKey = (STATE.apiKey||"").trim();
+  if(!apiKey) return {ok:false, message:"Add your API key in Settings first"};
+  const p = STATE.profile;
+  const bf = currentBF();
+  const goal = photoCache.find(ph=>ph.tag==="goal" && ph.id!==photo.id);
+  const prior = photoCache
+    .filter(ph=>ph.tag===photo.tag && ph.id!==photo.id && ph.date<photo.date)
+    .sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const images = [];
+  if(goal) images.push({label:"Goal reference photo:", dataURL:goal.dataURL});
+  if(prior) images.push({label:`Earlier progress photo (${fmtDate(prior.date)}):`, dataURL:prior.dataURL});
+  images.push({label:`Current photo (${fmtDate(photo.date)}, ${photo.tag}):`, dataURL:photo.dataURL});
+  const textPrompt = `Athlete: ${p.age}yo male, ${Math.floor(p.heightIn/12)}'${Math.round(p.heightIn%12)}", currently ${(latestWeight()||p.startWeightLb).toFixed(1)} lb, estimated body fat ${bf!=null?bf.toFixed(1)+"%":"unknown"}, currently in a ${p.phase} phase. Trains 5 days/week on a push/pull/legs/upper/arms split. Goal look: athletic and lean with visible muscle definition, not oversized — an "aesthetic athlete" physique, not a bodybuilder one.
+
+Photos are attached in this order${goal?": goal reference photo":""}${prior?(goal?", earlier progress photo":"earlier progress photo"):""}${goal||prior?", current photo":" (current photo only)"}.
+
+Give a short, direct, honest physique read:
+1. What looks visibly developed right now
+2. What's lagging relative to the rest — name the specific muscle group
+3. If a prior or goal photo is attached, note concrete visual changes or gaps
+4. One or two concrete adjustments for the next 4-6 weeks given the split above
+
+Plain text, no markdown or headers, under 160 words, talk directly to the lifter, second person.`;
+  const result = await callClaudeVision(apiKey, 400, textPrompt, images);
+  if(!result.ok) return result;
+  return {ok:true, analysis:{text:result.text, date: todayStr()}};
 }
 
 /* ============================= FOOD LOG ============================= */
@@ -1692,12 +1803,20 @@ async function offBarcode(code){
 
 /* ============================= RENDER: FUEL ============================= */
 let fuelLogDate = null;
-function snapMealShare(){
+function snapMealShare(date){
   const input = document.createElement("input");
   input.type = "file"; input.accept = "image/*"; input.capture = "environment";
   input.onchange = async ()=>{
     const file = input.files[0];
     if(!file) return;
+    const apiKey = (STATE.apiKey||"").trim();
+    if(apiKey){
+      toast("Analyzing meal…");
+      const result = await analyzeMealPhoto(file);
+      if(result.ok) openMealReviewModal(result.meal, date);
+      else toast(result.message || "Analysis failed");
+      return;
+    }
     const promptText = "Estimate the calories, protein, carbs, and fat in this meal. Give your best estimate even if you're not fully sure — a reasonable guess beats no answer.";
     if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
       try{ await navigator.share({files:[file], title:"Meal photo", text:promptText}); }
@@ -1707,6 +1826,53 @@ function snapMealShare(){
     }
   };
   input.click();
+}
+async function analyzeMealPhoto(file){
+  const apiKey = (STATE.apiKey||"").trim();
+  if(!apiKey) return {ok:false, message:"Add your API key in Settings first"};
+  let dataURL;
+  try{ dataURL = await resizeImage(file, 1024, 0.85); }
+  catch(e){ return {ok:false, message:"Couldn't read that photo"}; }
+  const textPrompt = `Look at this meal photo and estimate its nutrition. Respond with ONLY a JSON object, no other text, no markdown code fences, in exactly this shape: {"name":"short description of the meal","cals":number,"protein":number,"carbs":number,"fat":number}. Give your best reasonable estimate even if uncertain — never refuse to estimate.`;
+  const result = await callClaudeVision(apiKey, 300, textPrompt, [{dataURL}]);
+  if(!result.ok) return result;
+  try{
+    const cleaned = result.text.replace(/```json|```/g, "").trim();
+    const obj = JSON.parse(cleaned);
+    return {ok:true, meal:{
+      name: obj.name || "Meal (AI estimate)",
+      cals: Math.round(obj.cals)||0, protein: Math.round(obj.protein)||0,
+      carbs: Math.round(obj.carbs)||0, fat: Math.round(obj.fat)||0
+    }};
+  }catch(e){
+    return {ok:false, message:"Couldn't read the estimate — try again"};
+  }
+}
+function openMealReviewModal(meal, date){
+  openModal(`
+    <div class="modal-head"><h3>AI Estimate</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Name</label><input type="text" id="mrName" value="${esc(meal.name)}"></div>
+      <div class="field-grid">
+        <div class="field"><label>Calories</label><input type="number" id="mrCals" value="${meal.cals}"></div>
+        <div class="field"><label>Protein (g)</label><input type="number" id="mrProtein" value="${meal.protein}"></div>
+        <div class="field"><label>Carbs (g)</label><input type="number" id="mrCarbs" value="${meal.carbs}"></div>
+        <div class="field"><label>Fat (g)</label><input type="number" id="mrFat" value="${meal.fat}"></div>
+      </div>
+      <div class="scale-note">AI estimate from the photo — adjust anything that looks off before logging.</div>
+      <button class="btn btn-accent btn-block" id="mrAdd">Add to Log</button>
+    </div>
+  `);
+  document.getElementById("mrAdd").onclick = ()=>{
+    const food = {
+      id: "custom_"+uid(), name: document.getElementById("mrName").value.trim() || "Meal (AI estimate)",
+      cals100: num(document.getElementById("mrCals").value), protein100: num(document.getElementById("mrProtein").value),
+      carbs100: num(document.getElementById("mrCarbs").value), fat100: num(document.getElementById("mrFat").value),
+      defaultGrams: null, isCustom: true
+    };
+    addFoodEntry(date, food, null);
+    closeModal(); toast("Logged"); renderFuel();
+  };
 }
 
 function renderFuel(){
@@ -1775,7 +1941,7 @@ function renderFuel(){
       <div class="btn-row" style="margin-top:8px;">
         <button class="btn btn-block" id="btnSnapMeal">Snap Meal for AI Read</button>
       </div>
-      <div class="scale-note" style="margin-top:6px;">Opens your camera, then hands the photo straight to Claude with a ready prompt — free, no extra key needed. It can't write the result back into your log automatically, so copy the numbers into Log Food → Custom once you have them.</div>
+      <div class="scale-note" style="margin-top:6px;">${STATE.apiKey? "Snaps a photo and estimates calories/protein/carbs/fat automatically — review and adjust before logging." : "Opens your camera, then hands the photo to Claude with a ready prompt. Add an API key in Settings to get automatic estimates instead."}</div>
     </div>
 
     ${bf!=null && rec!==p.phase ? `
@@ -1831,7 +1997,7 @@ function renderFuel(){
   `;
   document.getElementById("fuelDate").onchange = (e)=>{ fuelLogDate = e.target.value || todayStr(); renderFuel(); };
   document.getElementById("btnLogFood").onclick = ()=> openLogFoodModal(fuelLogDate);
-  document.getElementById("btnSnapMeal").onclick = snapMealShare;
+  document.getElementById("btnSnapMeal").onclick = ()=> snapMealShare(fuelLogDate);
   el.querySelectorAll(".food-row .rm").forEach(btn=>{
     btn.onclick = ()=>{ deleteFoodEntry(btn.dataset.id); toast("Removed"); renderFuel(); };
   });
@@ -2326,9 +2492,15 @@ function renderSettings(){
       <div class="btn-row" style="margin-top:12px;"><button class="btn btn-block" id="btnEditProfile">Edit Profile</button></div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow">Photo Analysis</h2></div>
+    <div class="section-head"><h2 class="eyebrow">AI Features</h2><span class="hint">${STATE.apiKey? "Connected" : "Not connected"}</span></div>
     <div class="card">
-      <div class="tip">For a written read on any progress photo, just send it to Claude in a normal chat (this app, claude.ai, or the Claude mobile app) — no setup needed here, and it's covered by your existing Claude usage instead of a separate paid key.</div>
+      <div class="tip">Paste your Anthropic API key to unlock automatic analysis for progress photos (Photos tab) and meals (Snap Meal in Fuel). Sent directly from your phone to Anthropic when you use those features — never stored or sent anywhere else. Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>, and set a spending limit under Settings → Limits so cost is capped no matter what.</div>
+      <div class="key-row" style="margin-top:10px; display:flex; gap:8px;">
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-…" value="${esc(STATE.apiKey||"")}" style="flex:1;">
+        <button class="btn btn-sm" id="btnToggleKey">Show</button>
+      </div>
+      <button class="btn btn-accent btn-block" id="btnSaveKey" style="margin-top:10px;">Save Key</button>
+      ${STATE.apiKey? `<button class="btn btn-block" id="btnRemoveKey" style="margin-top:8px; color:var(--danger);">Remove Key</button>` : ``}
     </div>
 
     <div class="section-head"><h2 class="eyebrow">Appearance</h2></div>
@@ -2363,6 +2535,20 @@ function renderSettings(){
     </div>
   `;
   document.getElementById("btnEditProfile").onclick = ()=>{ document.getElementById("onboard").classList.add("active"); startOnboard(true); };
+  document.getElementById("btnToggleKey").onclick = ()=>{
+    const inp = document.getElementById("apiKeyInput");
+    const btn = document.getElementById("btnToggleKey");
+    if(inp.type==="password"){ inp.type="text"; btn.textContent="Hide"; }
+    else { inp.type="password"; btn.textContent="Show"; }
+  };
+  document.getElementById("btnSaveKey").onclick = ()=>{
+    STATE.apiKey = document.getElementById("apiKeyInput").value.trim();
+    saveState(); toast(STATE.apiKey? "API key saved" : "API key cleared"); renderSettings();
+  };
+  const removeKeyBtn = document.getElementById("btnRemoveKey");
+  if(removeKeyBtn) removeKeyBtn.onclick = ()=>{
+    STATE.apiKey = ""; saveState(); toast("API key removed"); renderSettings();
+  };
   const setPinBtn = document.getElementById("btnSetPin");
   if(setPinBtn) setPinBtn.onclick = openPinSetupModal;
   const changePinBtn = document.getElementById("btnChangePin");
