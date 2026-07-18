@@ -4,6 +4,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="theme-color" content="#131110" />
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js" defer></script>
 <style>
   :root{
     --bg:#EAE7E1; --surface:#F5F3EF; --surface-2:#FFFFFF; --border:#D6D1C7;
@@ -234,6 +235,22 @@
   .qty-preview .qp .v{font-size:14px; font-weight:700;}
   .qty-preview .qp .l{font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em; margin-top:2px;}
   .loading-row{text-align:center; padding:16px; color:var(--text-faint); font-size:12.5px;}
+  .scan-wrap{border-radius:8px; overflow:hidden; border:1px solid var(--border); background:#000; position:relative;}
+  .scan-wrap video{width:100%; display:block; max-height:280px; object-fit:cover;}
+  .scan-frame{position:absolute; inset:18% 12%; border:2px solid var(--accent); border-radius:8px; pointer-events:none; opacity:.85;}
+
+  /* look picker (onboarding + goal calc) */
+  .look-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px;}
+  .look-grid.leans{grid-template-columns:repeat(3,1fr);}
+  .look-opt{background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:8px 6px 7px; cursor:pointer; text-align:center;}
+  .look-opt.active{border-color:var(--accent); background:var(--accent-soft);}
+  .look-opt svg{color:var(--text-dim); margin-bottom:2px;}
+  .look-opt.active svg{color:var(--accent-strong);}
+  .look-opt .ln{font-size:10px; font-weight:700; line-height:1.25;}
+  .look-preview{display:flex; align-items:center; gap:14px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:14px;}
+  .look-preview svg{width:64px; flex:none; color:var(--accent-strong);}
+  .look-preview .lp-num{font-size:24px; font-weight:800;}
+  .look-preview .lp-sub{font-size:11.5px; color:var(--text-dim); margin-top:2px; line-height:1.4;}
 
   /* bottom nav */
   nav.tabbar{
@@ -258,6 +275,13 @@
   .ob-head h1{font-size:26px; text-transform:uppercase; letter-spacing:-.01em;}
   .ob-head p{color:var(--text-dim); font-size:13.5px; margin-top:8px; line-height:1.55;}
   .ob-note{font-size:12px; color:var(--text-faint); line-height:1.55; border-left:2px solid var(--accent); padding-left:10px;}
+
+  #lockScreen{position:fixed; inset:0; background:var(--bg); z-index:200; display:none; align-items:center; justify-content:center;}
+  #lockScreen.active{display:flex;}
+  .lock-wrap{max-width:300px; width:100%; padding:24px; display:flex; flex-direction:column; gap:12px; text-align:center;}
+  .lock-wrap h1{font-size:22px; text-transform:uppercase;}
+  .lock-wrap input{text-align:center; font-size:24px; letter-spacing:10px; padding:14px; margin-top:6px;}
+  .lock-wrap .btn-sm{margin:6px auto 0;}
 
   .toast{position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:var(--text); color:var(--bg); font-size:12.5px; font-weight:700; padding:9px 16px; border-radius:20px; z-index:80; opacity:0; pointer-events:none; transition:opacity .2s;}
   .toast.show{opacity:1;}
@@ -309,7 +333,7 @@
 <div id="onboard">
   <div class="ob-wrap">
     <div class="ob-head">
-      <div class="eyebrow">Setup — Step <span id="obStepNum">1</span> of 3</div>
+      <div class="eyebrow">Setup — Step <span id="obStepNum">1</span> of 4</div>
       <h1>Rack your stats</h1>
       <p>Everything is stored on this device only — no account, no server. Fill this in once so IRONLOG can size your calories and estimate body fat.</p>
     </div>
@@ -318,6 +342,17 @@
       <button class="btn" id="obBack" style="display:none">Back</button>
       <button class="btn btn-accent btn-block" id="obNext">Continue</button>
     </div>
+  </div>
+</div>
+
+<div id="lockScreen">
+  <div class="lock-wrap">
+    <div class="eyebrow">IRONLOG</div>
+    <h1>Enter PIN</h1>
+    <input type="password" inputmode="numeric" id="lockInput" maxlength="8" placeholder="••••" autocomplete="off">
+    <button class="btn btn-accent btn-block" id="lockSubmit">Unlock</button>
+    <div id="lockError" class="scale-note" style="color:var(--danger); display:none;">Incorrect PIN — try again.</div>
+    <button class="btn btn-sm" id="lockForgot" type="button">Forgot PIN?</button>
   </div>
 </div>
 
@@ -394,8 +429,14 @@ function defaultState(){
     workoutLog: [],  // {date, dayKey, exercises:[{n, sets:[{w,r}]}]}
     myFoods: [],     // {id, name, brand, cals100, protein100, carbs100, fat100, defaultGrams, isCustom, lastUsed}
     foodLog: [],     // {id, date, foodId, name, grams, cals, protein, carbs, fat}
-    theme: "auto"
+    theme: "auto",
+    appLockHash: null
   };
+}
+async function hashPin(pin){
+  const enc = new TextEncoder().encode("ironlog_local_"+pin);
+  const buf = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 
 let STATE = loadState();
@@ -490,7 +531,35 @@ function openModal(html, opts){
   document.getElementById("modalRoot").classList.toggle("modal-full", !!(opts&&opts.full));
   document.getElementById("modalVeil").classList.add("active");
 }
-function closeModal(){ document.getElementById("modalVeil").classList.remove("active"); }
+function closeModal(){ stopBarcodeScan(); document.getElementById("modalVeil").classList.remove("active"); }
+
+/* ---- camera barcode scanning (ZXing) ---- */
+let zxingReader = null;
+function stopBarcodeScan(){
+  if(zxingReader){ try{ zxingReader.reset(); }catch(e){} zxingReader = null; }
+  const wrap = document.getElementById("lfScanWrap");
+  if(wrap) wrap.style.display = "none";
+}
+async function startBarcodeScan(onDetected){
+  if(typeof ZXing==="undefined"){ toast("Scanner is still loading — try again in a second"); return; }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ toast("Camera not available on this browser"); return; }
+  const wrap = document.getElementById("lfScanWrap");
+  const videoEl = document.getElementById("lfScanVideo");
+  if(!wrap || !videoEl) return;
+  wrap.style.display = "block";
+  try{
+    zxingReader = new ZXing.BrowserMultiFormatReader();
+    const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+    const backCam = devices.find(d=>/back|rear|environment/i.test(d.label));
+    const deviceId = backCam ? backCam.deviceId : (devices[devices.length-1] || {}).deviceId;
+    await zxingReader.decodeFromVideoDevice(deviceId, videoEl, (result, err)=>{
+      if(result) onDetected(result.getText());
+    });
+  }catch(e){
+    toast("Camera access failed — check Safari's camera permission for this site");
+    stopBarcodeScan();
+  }
+}
 document.getElementById("modalVeil").addEventListener("click", e=>{
   if(e.target.id==="modalVeil") closeModal();
 });
@@ -571,15 +640,15 @@ function phaseTimelineWeeks(phase){
    measure) crossed with a target leanness — not photo pixel analysis, but the same
    math coaches use to reverse-engineer "what should I weigh to look like that" ---- */
 const MUSCLE_LEVELS = [
-  {key:"lean", ffmi:19.0, label:"Lean athletic", desc:"Fit, toned, not overtly muscular — runner or swimmer build"},
-  {key:"athletic", ffmi:20.5, label:"Athletic (your reference photos)", desc:"Visible muscle and shape without bulk — soccer/basketball athlete build"},
-  {key:"built", ffmi:22.0, label:"Built", desc:"Noticeably muscular, fills out a t-shirt — several years of serious training"},
-  {key:"muscular", ffmi:23.5, label:"Very muscular", desc:"Near the top of what's achievable without gear — takes years"},
+  {key:"lean", ffmi:19.0, shoulderW:60, label:"Lean athletic", desc:"Fit, toned, not overtly muscular — runner or swimmer build"},
+  {key:"athletic", ffmi:20.5, shoulderW:68, label:"Athletic", desc:"Visible muscle and V-taper without bulk — matches the physique you sent as your reference"},
+  {key:"built", ffmi:22.0, shoulderW:76, label:"Built", desc:"Noticeably muscular, fills out a t-shirt — several years of serious training"},
+  {key:"muscular", ffmi:23.5, shoulderW:84, label:"Very muscular", desc:"Near the top of what's achievable without gear — takes years"},
 ];
 const LEAN_LEVELS = [
-  {key:"lean", bf:15, label:"Lean", desc:"Flat stomach, faint ab outline"},
-  {key:"defined", bf:11, label:"Defined", desc:"Visible abs most of the day — matches your reference photos"},
-  {key:"shredded", bf:7, label:"Shredded", desc:"Fully visible abs and veins — contest-prep territory, hard to hold"},
+  {key:"lean", bf:15, abLevel:0, label:"Lean", desc:"Flat stomach, faint ab outline"},
+  {key:"defined", bf:11, abLevel:2, label:"Defined", desc:"Visible abs most of the day — matches the physique you sent as your reference"},
+  {key:"shredded", bf:7, abLevel:3, label:"Shredded", desc:"Fully visible abs and veins — contest-prep territory, hard to hold"},
 ];
 function goalWeightFromLook(muscleKey, leanKey, heightIn){
   const m = MUSCLE_LEVELS.find(x=>x.key===muscleKey) || MUSCLE_LEVELS[1];
@@ -588,6 +657,83 @@ function goalWeightFromLook(muscleKey, leanKey, heightIn){
   const lbmKg = (m.ffmi - 6.1*(1.8-heightM)) * heightM*heightM;
   const weightKg = lbmKg / (1-l.bf/100);
   return Math.round(weightKg/0.453592);
+}
+/* simple line-art torso silhouette used as a visual stand-in for "what look" —
+   shoulderW controls the V-taper width, abLevel controls ab-line detail */
+function bodySilhouetteSVG(shoulderW, abLevel){
+  const waistW = abLevel>=3 ? 40 : 44;
+  const sL=(100-shoulderW)/2, sR=100-sL;
+  const wLx=(100-waistW)/2, wRx=100-wLx;
+  const hipW = Math.min(96, waistW*1.15);
+  const hL=(100-hipW)/2, hR=100-hL;
+  let abs = "";
+  if(abLevel>=1) abs += `<line x1="${wLx+6}" y1="66" x2="${wRx-6}" y2="66" stroke="currentColor" stroke-width="1.4" opacity="0.55"/>`;
+  if(abLevel>=2){
+    abs += `<line x1="${wLx+8}" y1="74" x2="${wRx-8}" y2="74" stroke="currentColor" stroke-width="1.4" opacity="0.55"/>`;
+    abs += `<line x1="50" y1="59" x2="50" y2="82" stroke="currentColor" stroke-width="1.2" opacity="0.4"/>`;
+  }
+  if(abLevel>=3){
+    abs += `<line x1="${wLx+1}" y1="58" x2="${wLx+13}" y2="70" stroke="currentColor" stroke-width="1.2" opacity="0.45"/>`;
+    abs += `<line x1="${wRx-1}" y1="58" x2="${wRx-13}" y2="70" stroke="currentColor" stroke-width="1.2" opacity="0.45"/>`;
+  }
+  return `<svg viewBox="0 0 100 118" width="100%" style="display:block;">
+    <circle cx="50" cy="10" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M46,18 L46,26 L54,26 L54,18" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M${sL},26 C${sL-3},42 ${wLx+3},50 ${wLx},60 L${hL},112 L${hR},112 L${wRx},60 C${wRx-3},50 ${sR+3},42 ${sR},26 Z"
+      fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+    ${abs}
+  </svg>`;
+}
+function renderLookPicker(state, onChange){
+  const lb = goalWeightFromLook(state.muscleKey, state.leanKey, state.heightIn);
+  const mDesc = MUSCLE_LEVELS.find(m=>m.key===state.muscleKey).desc;
+  const lDesc = LEAN_LEVELS.find(l=>l.key===state.leanKey);
+  return {
+    lb,
+    html: `
+      <div class="field"><label>How muscular</label>
+        <div class="look-grid">
+          ${MUSCLE_LEVELS.map(m=>`
+            <div class="look-opt ${state.muscleKey===m.key?"active":""}" data-axis="muscle" data-v="${m.key}">
+              ${bodySilhouetteSVG(m.shoulderW, 1)}
+              <div class="ln">${m.label}</div>
+            </div>
+          `).join("")}
+        </div>
+        <div class="scale-note">${mDesc}</div>
+      </div>
+      <div class="field"><label>How lean</label>
+        <div class="look-grid leans">
+          ${LEAN_LEVELS.map(l=>`
+            <div class="look-opt ${state.leanKey===l.key?"active":""}" data-axis="lean" data-v="${l.key}">
+              ${bodySilhouetteSVG(68, l.abLevel)}
+              <div class="ln">${l.label}</div>
+            </div>
+          `).join("")}
+        </div>
+        <div class="scale-note">${lDesc.desc} (~${lDesc.bf}% body fat)</div>
+      </div>
+      <div class="look-preview">
+        ${bodySilhouetteSVG(MUSCLE_LEVELS.find(m=>m.key===state.muscleKey).shoulderW, LEAN_LEVELS.find(l=>l.key===state.leanKey).abLevel)}
+        <div>
+          <div class="lp-num num">${lb} lb</div>
+          <div class="lp-sub">at your height, for this look. Not photo analysis — this is the same FFMI-based math coaches use to reverse-engineer target weight from a physique goal.</div>
+        </div>
+      </div>
+    `
+  };
+}
+function wireLookPicker(container, state, onChange){
+  container.querySelectorAll(".look-opt").forEach(opt=>{
+    opt.onclick = ()=>{
+      if(opt.dataset.axis==="muscle") state.muscleKey = opt.dataset.v;
+      else state.leanKey = opt.dataset.v;
+      const r = renderLookPicker(state, onChange);
+      container.innerHTML = r.html;
+      wireLookPicker(container, state, onChange);
+      onChange(r.lb, state);
+    };
+  });
 }
 
 /* ============================= RENDER: SHELL ============================= */
@@ -772,39 +918,21 @@ function openChangePhaseModal(){
 
 function openGoalWeightCalc(onUse, heightIn){
   const hIn = heightIn || (STATE.profile && STATE.profile.heightIn) || 69.5;
-  let muscleKey = "athletic", leanKey = "defined";
+  const state = {muscleKey:"athletic", leanKey:"defined", heightIn: hIn};
+  let currentLb = 0;
   function render(){
-    const lb = goalWeightFromLook(muscleKey, leanKey, hIn);
+    const r = renderLookPicker(state, ()=>{});
+    currentLb = r.lb;
     openModal(`
       <div class="modal-head"><h3>Estimate Goal Weight</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
       <div class="modal-body">
-        <div class="tip">This isn't reading your photos pixel-by-pixel — no app can do that reliably. It's the same math coaches use: how muscular you want to look (independent of height) crossed with how lean, scaled to your actual height in inches.</div>
-        <div class="field"><label>How muscular</label>
-          <div class="segmented" id="calcMuscle" style="flex-wrap:wrap;">
-            ${MUSCLE_LEVELS.map(m=>`<button data-v="${m.key}" class="${muscleKey===m.key?"active":""}" style="flex:1 1 45%;">${m.label}</button>`).join("")}
-          </div>
-          <div class="scale-note">${MUSCLE_LEVELS.find(m=>m.key===muscleKey).desc}</div>
-        </div>
-        <div class="field"><label>How lean</label>
-          <div class="segmented" id="calcLean">
-            ${LEAN_LEVELS.map(l=>`<button data-v="${l.key}" class="${leanKey===l.key?"active":""}">${l.label}</button>`).join("")}
-          </div>
-          <div class="scale-note">${LEAN_LEVELS.find(l=>l.key===leanKey).desc} (~${LEAN_LEVELS.find(l=>l.key===leanKey).bf}% body fat)</div>
-        </div>
-        <div class="qty-preview" style="grid-template-columns:1fr;">
-          <div class="qp"><div class="v num" style="font-size:22px;">${lb} lb</div><div class="l">at your height, this look</div></div>
-        </div>
+        <div id="calcPicker">${r.html}</div>
         <button class="btn btn-accent btn-block" id="calcUse">Use This as Goal Weight</button>
       </div>
-    `);
-    document.querySelectorAll("#calcMuscle button").forEach(b=>{
-      b.onclick = ()=>{ muscleKey = b.dataset.v; render(); };
-    });
-    document.querySelectorAll("#calcLean button").forEach(b=>{
-      b.onclick = ()=>{ leanKey = b.dataset.v; render(); };
-    });
+    `, {full:true});
+    wireLookPicker(document.getElementById("calcPicker"), state, (lb)=>{ currentLb = lb; });
     document.getElementById("calcUse").onclick = ()=>{
-      onUse(lb); closeModal(); toast("Goal weight set to "+lb+" lb");
+      onUse(currentLb); closeModal(); toast("Goal weight set to "+currentLb+" lb");
     };
   }
   render();
@@ -1134,13 +1262,14 @@ function normalizeOFFProduct(product){
   };
 }
 async function offSearch(query){
-  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=15`;
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=25&sort_by=unique_scans_n`;
   const res = await fetch(url);
   if(!res.ok) throw new Error("search failed");
   const data = await res.json();
   return (data.products||[])
     .filter(p=>p.product_name && p.nutriments && p.nutriments["energy-kcal_100g"]!=null)
-    .map(normalizeOFFProduct);
+    .map(normalizeOFFProduct)
+    .slice(0, 20);
 }
 async function offBarcode(code){
   const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`;
@@ -1323,13 +1452,21 @@ function openLogFoodModal(date){
       `;
     } else if(mode==="barcode"){
       body = `
-        <div class="field"><label>Barcode number</label>
+        <button class="btn btn-accent btn-block" id="lfScanBtn">Scan Barcode with Camera</button>
+        <div id="lfScanWrap" style="display:none;">
+          <div class="scan-wrap">
+            <video id="lfScanVideo" playsinline muted></video>
+            <div class="scan-frame"></div>
+          </div>
+          <button class="btn btn-block" id="lfScanStop" style="margin-top:8px;">Cancel Scan</button>
+        </div>
+        <div class="field"><label>Or type the barcode number</label>
           <div style="display:flex; gap:8px;">
             <input type="text" inputmode="numeric" id="lfCode" placeholder="e.g. 0511111019930" style="flex:1;">
             <button class="btn btn-accent" id="lfLookupBtn">Look Up</button>
           </div>
         </div>
-        <div class="scale-note">Type the numbers printed under the barcode's lines — most food packaging has this on the back or bottom.</div>
+        <div class="scale-note">Numbers are printed under the barcode's lines — most food packaging has this on the back or bottom.</div>
         <div id="lfResults">${resultsHTML()}</div>
       `;
     } else if(mode==="mine"){
@@ -1382,8 +1519,24 @@ function openLogFoodModal(date){
 
   function wire(){
     document.querySelectorAll(".segmented button[data-m]").forEach(b=>{
-      b.onclick = ()=>{ mode = b.dataset.m; results=[]; searchState="idle"; render(); };
+      b.onclick = ()=>{ stopBarcodeScan(); mode = b.dataset.m; results=[]; searchState="idle"; render(); };
     });
+    const scanBtn = document.getElementById("lfScanBtn");
+    if(scanBtn) scanBtn.onclick = ()=> startBarcodeScan(async (code)=>{
+      stopBarcodeScan();
+      document.getElementById("lfCode").value = code;
+      searchState = "loading"; document.getElementById("lfResults").innerHTML = resultsHTML();
+      try{
+        const food = await offBarcode(code);
+        if(food){ picked = food; grams = food.defaultGrams || 100; render(); return; }
+        results = []; searchState = "error"; errorMsg = "No product found for that barcode";
+      }catch(e){
+        searchState = "error"; errorMsg = "Lookup failed — check your connection";
+      }
+      document.getElementById("lfResults").innerHTML = resultsHTML();
+    });
+    const scanStop = document.getElementById("lfScanStop");
+    if(scanStop) scanStop.onclick = stopBarcodeScan;
     const searchBtn = document.getElementById("lfSearchBtn");
     if(searchBtn) searchBtn.onclick = async ()=>{
       const q = document.getElementById("lfQuery").value.trim();
@@ -1478,6 +1631,17 @@ function renderSettings(){
       </div>
     </div>
 
+    <div class="section-head"><h2 class="eyebrow">Security</h2></div>
+    <div class="card">
+      <div class="row"><span class="k">App Lock</span><span class="v">${STATE.appLockHash? "On" : "Off"}</span></div>
+      <div class="btn-row" style="margin-top:12px;">
+        ${STATE.appLockHash
+          ? `<button class="btn btn-block" id="btnChangePin">Change PIN</button><button class="btn btn-block" id="btnRemovePin" style="color:var(--danger)">Turn Off</button>`
+          : `<button class="btn btn-accent btn-block" id="btnSetPin">Set a PIN</button>`}
+      </div>
+      <div class="tip" style="margin-top:10px;">A PIN just locks this app's screen on this device — there's no account or server. If you forget it, the only recovery is erasing all local data.</div>
+    </div>
+
     <div class="section-head"><h2 class="eyebrow">Data</h2><span class="hint">stored only on this device</span></div>
     <div class="card">
       <div class="tip">Photos and logs live in this browser's local storage. They will not sync to another device automatically — export a backup if you switch phones or clear browser data.</div>
@@ -1490,6 +1654,14 @@ function renderSettings(){
     </div>
   `;
   document.getElementById("btnEditProfile").onclick = ()=>{ document.getElementById("onboard").classList.add("active"); startOnboard(true); };
+  const setPinBtn = document.getElementById("btnSetPin");
+  if(setPinBtn) setPinBtn.onclick = openPinSetupModal;
+  const changePinBtn = document.getElementById("btnChangePin");
+  if(changePinBtn) changePinBtn.onclick = openPinSetupModal;
+  const removePinBtn = document.getElementById("btnRemovePin");
+  if(removePinBtn) removePinBtn.onclick = ()=>{
+    STATE.appLockHash = null; saveState(); toast("App Lock turned off"); renderSettings();
+  };
   el.querySelectorAll(".segmented button").forEach(b=>{
     b.onclick = ()=>{ setTheme(b.dataset.t); renderSettings(); };
   });
@@ -1513,6 +1685,25 @@ function renderSettings(){
       closeModal(); toast("Data reset");
       location.reload();
     };
+  };
+}
+
+function openPinSetupModal(){
+  openModal(`
+    <div class="modal-head"><h3>${STATE.appLockHash? "Change PIN" : "Set a PIN"}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>New PIN (4–8 digits)</label><input type="password" inputmode="numeric" id="pinNew" maxlength="8" autocomplete="off"></div>
+      <div class="field"><label>Confirm PIN</label><input type="password" inputmode="numeric" id="pinConfirm" maxlength="8" autocomplete="off"></div>
+      <button class="btn btn-accent btn-block" id="pinSave">Save PIN</button>
+    </div>
+  `);
+  document.getElementById("pinSave").onclick = async ()=>{
+    const a = document.getElementById("pinNew").value;
+    const b = document.getElementById("pinConfirm").value;
+    if(a.length<4){ toast("Use at least 4 digits"); return; }
+    if(a!==b){ toast("PINs don't match"); return; }
+    STATE.appLockHash = await hashPin(a);
+    saveState(); closeModal(); toast("PIN saved"); renderSettings();
   };
 }
 
@@ -1568,6 +1759,8 @@ function renderAll(){
 /* ============================= ONBOARDING ============================= */
 let obStep = 1;
 let obDraft = {};
+let obLookState = null;
+let obGoalPhotoPending = null;
 function startOnboard(editing){
   obStep = 1;
   const p = STATE.profile;
@@ -1576,6 +1769,8 @@ function startOnboard(editing){
     neckIn:null, waistIn:null, startWeightLb:160,
     phase:"bulk", phaseStart: todayStr(), goalWeightLb:null
   };
+  obLookState = {muscleKey: obDraft.lookMuscle||"athletic", leanKey: obDraft.lookLean||"defined", heightIn: obDraft.heightIn};
+  obGoalPhotoPending = null;
   renderObStep();
 }
 function renderObStep(){
@@ -1600,18 +1795,40 @@ function renderObStep(){
     `;
   } else if(obStep===2){
     body.innerHTML = `
-      <div class="ob-note">Waist &amp; neck let IRONLOG estimate body fat with the U.S. Navy method — accurate within a couple percent for most people, no fancy scale needed. Measure waist at the belly button, neck just below the larynx.</div>
+      <div class="ob-note">Waist &amp; neck let IRONLOG estimate body fat with the U.S. Navy method — accurate within a couple percent, no fancy scale needed.</div>
       <div class="field-grid">
         <div class="field"><label>Waist (in)</label><input type="number" step="0.1" id="obWaist" value="${obDraft.waistIn||''}"></div>
         <div class="field"><label>Neck (in)</label><input type="number" step="0.1" id="obNeck" value="${obDraft.neckIn||''}"></div>
       </div>
+      <ul class="plain">
+        <li><strong>Waist:</strong> around your belly button, tape flat, don't suck in or flex.</li>
+        <li><strong>Neck:</strong> just below your Adam's apple, tape tilted slightly downward in front.</li>
+        <li><strong>Timing:</strong> first thing in the morning, after the bathroom, before eating — that's when readings are most consistent day to day.</li>
+      </ul>
       <div class="scale-note">Not sure right now? Leave blank and add it later from the Dashboard — the app just won't show a body-fat estimate until then.</div>
     `;
+  } else if(obStep===3){
+    const r = renderLookPicker(obLookState, ()=>{});
+    body.innerHTML = `
+      <div class="ob-note">Pick the look you're going for — this sets a personalized goal weight and shapes the guidance in later steps. This isn't reading a photo pixel-by-pixel (no app does that reliably); it's the same FFMI-based math coaches use.</div>
+      <div id="obLookPicker">${r.html}</div>
+      <div class="field" style="margin-top:4px;">
+        <label>Save your reference photo (optional)</label>
+        <input type="file" accept="image/*" id="obGoalPhoto">
+        <div class="scale-note">Save your own copy of a photo that matches this look — it's tagged "Goal" and stays only on your phone, viewable anytime in the Photos tab next to your progress pics.</div>
+      </div>
+    `;
+    wireLookPicker(document.getElementById("obLookPicker"), obLookState, ()=>{});
+    document.getElementById("obGoalPhoto").onchange = (e)=>{ obGoalPhotoPending = e.target.files[0] || null; };
   } else {
     const tempBF = navyBF(parseFloat(obDraft.waistIn), parseFloat(obDraft.neckIn), obDraft.heightIn);
     const rec = recommendedPhase(tempBF);
+    const lookLb = goalWeightFromLook(obLookState.muscleKey, obLookState.leanKey, obDraft.heightIn);
+    const goalLb = obDraft.goalWeightLb || lookLb;
+    const why = explainPhaseChoice(tempBF, obDraft.startWeightLb, goalLb, obLookState);
     body.innerHTML = `
       ${tempBF!=null? `<div class="ob-note">Estimated body fat: <strong>${tempBF.toFixed(1)}%</strong>. Suggested starting phase: <strong style="text-transform:capitalize">${rec}</strong>.</div>` : ``}
+      <div class="tip">${why}</div>
       <div class="field"><label>Starting phase</label>
         <select id="obPhase">
           <option value="bulk" ${(obDraft.phase||rec)==="bulk"?"selected":""}>Bulk — build muscle</option>
@@ -1619,16 +1836,27 @@ function renderObStep(){
           <option value="maintain" ${(obDraft.phase||rec)==="maintain"?"selected":""}>Maintain — recomposition</option>
         </select>
       </div>
-      <div class="field"><label>Goal weight (lb, optional)</label><input type="number" step="0.1" id="obGoal" value="${obDraft.goalWeightLb||''}"></div>
-      <button class="btn btn-sm" id="obCalc" type="button">Not sure? Estimate from a target look</button>
-      <div class="scale-note">Your goal weight is a checkpoint, not a finish line — you can re-set it any time from the Dashboard.</div>
+      <div class="field"><label>Goal weight (lb)</label><input type="number" step="0.1" id="obGoal" value="${goalLb}"></div>
+      <div class="scale-note">Pre-filled from the look you picked (${lookLb} lb) — edit it any time, and re-set it any time from the Dashboard. Your goal weight is a checkpoint, not a finish line.</div>
     `;
-    document.getElementById("obCalc").onclick = ()=> openGoalWeightCalc((lb)=>{
-      document.getElementById("obGoal").value = lb;
-    }, obDraft.heightIn);
   }
 }
-document.getElementById("obNext").addEventListener("click", ()=>{
+function explainPhaseChoice(bf, weightLb, goalLb, look){
+  const muscleLabel = MUSCLE_LEVELS.find(m=>m.key===look.muscleKey).label.toLowerCase();
+  const leanLabel = LEAN_LEVELS.find(l=>l.key===look.leanKey);
+  if(bf==null){
+    return `Add your waist/neck numbers to get a body-fat estimate — it makes this recommendation specific instead of generic. For now: most beginners with visible extra softness around the midsection should cut first; most already-lean beginners should bulk first.`;
+  }
+  const diff = Math.round(goalLb - weightLb);
+  if(bf >= leanLabel.bf + 4){
+    return `You're at roughly ${bf.toFixed(1)}% body fat, above the ~${leanLabel.bf}% "${leanLabel.label.toLowerCase()}" look you picked. Cutting first makes sense — bulking on top of higher body fat mostly adds more fat, not the visible muscle you're after. Once you're closer to that leanness, you can bulk to add the size a ${muscleLabel} look needs.`;
+  }
+  if(diff > 8){
+    return `You're already close to the leanness you picked (~${bf.toFixed(1)}% vs a ~${leanLabel.bf}% target), but you're about ${diff} lb of muscle away from a ${muscleLabel} look. Bulking first builds that muscle — you can cut the last bit of fat afterward to reveal it, which is faster than trying to build muscle in a deficit.`;
+  }
+  return `You're already close to both the leanness and the size for this look — a slow lean bulk or a maintenance recomposition phase (small surplus/deficit, focus on the lifts) will get you there without much fat gain.`;
+}
+document.getElementById("obNext").addEventListener("click", async ()=>{
   if(obStep===1){
     const ft = parseFloat(document.getElementById("obFt").value)||5;
     const inch = parseFloat(document.getElementById("obIn").value)||0;
@@ -1636,11 +1864,23 @@ document.getElementById("obNext").addEventListener("click", ()=>{
     obDraft.age = parseInt(document.getElementById("obAge").value)||18;
     obDraft.startWeightLb = parseFloat(document.getElementById("obWeight").value)||160;
     obDraft.activity = document.getElementById("obActivity").value;
+    obLookState.heightIn = obDraft.heightIn;
     obStep = 2; renderObStep();
   } else if(obStep===2){
     obDraft.waistIn = parseFloat(document.getElementById("obWaist").value)||null;
     obDraft.neckIn = parseFloat(document.getElementById("obNeck").value)||null;
     obStep = 3; renderObStep();
+  } else if(obStep===3){
+    obDraft.lookMuscle = obLookState.muscleKey;
+    obDraft.lookLean = obLookState.leanKey;
+    obDraft.goalWeightLb = null;
+    if(obGoalPhotoPending){
+      try{
+        const dataURL = await resizeImage(obGoalPhotoPending);
+        await addPhoto({id:uid(), date: todayStr(), tag:"goal", dataURL});
+      }catch(e){ /* ignore — non-critical */ }
+    }
+    obStep = 4; renderObStep();
   } else {
     obDraft.phase = document.getElementById("obPhase").value;
     obDraft.goalWeightLb = parseFloat(document.getElementById("obGoal").value)||null;
@@ -1667,13 +1907,51 @@ function finishOnboard(){
 }
 
 /* ============================= INIT ============================= */
-function init(){
-  if(STATE.theme && STATE.theme!=="auto") setTheme(STATE.theme);
+function afterUnlock(){
   if(!STATE.profile){
     document.getElementById("onboard").classList.add("active");
     startOnboard(false);
   } else {
     renderAll();
+  }
+}
+function showLockScreen(onUnlock){
+  const el = document.getElementById("lockScreen");
+  const input = document.getElementById("lockInput");
+  const err = document.getElementById("lockError");
+  el.classList.add("active");
+  err.style.display = "none";
+  input.value = "";
+  const tryUnlock = async ()=>{
+    const h = await hashPin(input.value);
+    if(h === STATE.appLockHash){
+      el.classList.remove("active");
+      onUnlock();
+    } else {
+      err.style.display = "block";
+      input.value = "";
+      input.focus();
+    }
+  };
+  document.getElementById("lockSubmit").onclick = tryUnlock;
+  input.onkeydown = (e)=>{ if(e.key==="Enter") tryUnlock(); };
+  document.getElementById("lockForgot").onclick = async ()=>{
+    if(confirm("This erases all app data on this device — logs, photos, everything. There's no way to recover a forgotten PIN otherwise. Continue?")){
+      localStorage.removeItem(LS_KEY);
+      const db = await getDB();
+      const tx = db.transaction("photos","readwrite");
+      tx.objectStore("photos").clear();
+      location.reload();
+    }
+  };
+  setTimeout(()=>input.focus(), 50);
+}
+function init(){
+  if(STATE.theme && STATE.theme!=="auto") setTheme(STATE.theme);
+  if(STATE.appLockHash){
+    showLockScreen(afterUnlock);
+  } else {
+    afterUnlock();
   }
 }
 init();
