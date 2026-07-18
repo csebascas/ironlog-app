@@ -2470,7 +2470,7 @@ function renderSettings(){
 
     <div class="section-head"><h2 class="eyebrow">AI Features</h2><span class="hint">${STATE.apiKey? "Connected" : "Not connected"}</span></div>
     <div class="card">
-      <div class="tip">Paste your Anthropic API key to unlock automatic analysis for progress photos (Photos tab) and meals (Snap Meal in Fuel). Sent directly from your phone to Anthropic when you use those features — never stored or sent anywhere else. Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>, and set a spending limit under Settings → Limits so cost is capped no matter what.</div>
+      <div class="tip">Unlocks automatic photo/meal analysis. Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> — set a spending limit there so cost stays capped.</div>
       <div class="key-row" style="margin-top:10px; display:flex; gap:8px;">
         <input type="password" id="apiKeyInput" placeholder="sk-ant-…" value="${esc(STATE.apiKey||"")}" style="flex:1;">
         <button class="btn btn-sm" id="btnToggleKey">Show</button>
