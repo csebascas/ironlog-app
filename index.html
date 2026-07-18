@@ -97,8 +97,8 @@
 
   .stat-rack{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
   .stat-cell{background:var(--surface); padding:9px 6px; text-align:center;}
-  .stat-cell .v{font-size:16px; font-weight:700;}
-  .stat-cell .l{font-size:9.5px; text-transform:uppercase; letter-spacing:.09em; color:var(--text-faint); margin-top:2px;}
+  .stat-cell .v{font-size:17px; font-weight:800;}
+  .stat-cell .l{font-size:10.5px; color:var(--text-faint); margin-top:2px;}
   .phase-pill{
     display:inline-flex; align-items:center; gap:5px; padding:2px 8px 2px 6px;
     border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
@@ -259,17 +259,17 @@
   .scan-frame{position:absolute; inset:18% 12%; border:2px solid var(--accent); border-radius:8px; pointer-events:none; opacity:.85;}
 
   /* look picker (onboarding + goal calc) */
-  .look-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px;}
+  .look-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:7px;}
   .look-grid.leans{grid-template-columns:repeat(3,1fr);}
-  .look-opt{background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:8px 6px 7px; cursor:pointer; text-align:center;}
-  .look-opt.active{border-color:var(--accent); background:var(--accent-soft);}
-  .look-opt svg{color:var(--text-dim); margin-bottom:2px;}
-  .look-opt.active svg{color:var(--accent-strong);}
-  .look-opt .ln{font-size:10px; font-weight:700; line-height:1.25;}
-  .look-preview{display:flex; align-items:center; gap:14px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:14px;}
-  .look-preview svg{width:64px; flex:none; color:var(--accent-strong);}
-  .look-preview .lp-num{font-size:24px; font-weight:800;}
-  .look-preview .lp-sub{font-size:11.5px; color:var(--text-dim); margin-top:2px; line-height:1.4;}
+  .look-opt{
+    background:var(--surface-2); border:1px solid transparent; border-radius:999px;
+    padding:10px 6px; cursor:pointer; text-align:center; font-size:12px; font-weight:700;
+    color:var(--text-dim); font-family:inherit; transition:background .15s ease, color .15s ease;
+  }
+  .look-opt.active{background:var(--cta); color:var(--cta-text);}
+  .look-preview{text-align:center; padding:18px 14px 16px;}
+  .look-preview .lp-num{font-size:32px; font-weight:800; letter-spacing:-.01em;}
+  .look-preview .lp-sub{font-size:12.5px; color:var(--text-faint); margin-top:4px;}
 
   /* progress blocks — "3D" plate-like tiles instead of a line chart */
   .block-row{display:flex; gap:6px; flex-wrap:wrap;}
@@ -790,30 +790,6 @@ function goalWeightFromLook(muscleKey, leanKey, heightIn){
 }
 /* simple line-art torso silhouette used as a visual stand-in for "what look" —
    shoulderW controls the V-taper width, abLevel controls ab-line detail */
-function bodySilhouetteSVG(shoulderW, abLevel){
-  const waistW = abLevel>=3 ? 40 : 44;
-  const sL=(100-shoulderW)/2, sR=100-sL;
-  const wLx=(100-waistW)/2, wRx=100-wLx;
-  const hipW = Math.min(96, waistW*1.15);
-  const hL=(100-hipW)/2, hR=100-hL;
-  let abs = "";
-  if(abLevel>=1) abs += `<line x1="${wLx+6}" y1="66" x2="${wRx-6}" y2="66" stroke="currentColor" stroke-width="1.4" opacity="0.55"/>`;
-  if(abLevel>=2){
-    abs += `<line x1="${wLx+8}" y1="74" x2="${wRx-8}" y2="74" stroke="currentColor" stroke-width="1.4" opacity="0.55"/>`;
-    abs += `<line x1="50" y1="59" x2="50" y2="82" stroke="currentColor" stroke-width="1.2" opacity="0.4"/>`;
-  }
-  if(abLevel>=3){
-    abs += `<line x1="${wLx+1}" y1="58" x2="${wLx+13}" y2="70" stroke="currentColor" stroke-width="1.2" opacity="0.45"/>`;
-    abs += `<line x1="${wRx-1}" y1="58" x2="${wRx-13}" y2="70" stroke="currentColor" stroke-width="1.2" opacity="0.45"/>`;
-  }
-  return `<svg viewBox="0 0 100 118" width="100%" style="display:block;">
-    <circle cx="50" cy="10" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
-    <path d="M46,18 L46,26 L54,26 L54,18" fill="none" stroke="currentColor" stroke-width="2"/>
-    <path d="M${sL},26 C${sL-3},42 ${wLx+3},50 ${wLx},60 L${hL},112 L${hR},112 L${wRx},60 C${wRx-3},50 ${sR+3},42 ${sR},26 Z"
-      fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
-    ${abs}
-  </svg>`;
-}
 function renderLookPicker(state, onChange){
   const lb = goalWeightFromLook(state.muscleKey, state.leanKey, state.heightIn);
   const mDesc = MUSCLE_LEVELS.find(m=>m.key===state.muscleKey).desc;
@@ -824,31 +800,20 @@ function renderLookPicker(state, onChange){
       <div class="field"><label>How muscular</label>
         <div class="look-grid">
           ${MUSCLE_LEVELS.map(m=>`
-            <div class="look-opt ${state.muscleKey===m.key?"active":""}" data-axis="muscle" data-v="${m.key}">
-              ${bodySilhouetteSVG(m.shoulderW, 1)}
-              <div class="ln">${m.label}</div>
-            </div>
+            <button type="button" class="look-opt ${state.muscleKey===m.key?"active":""}" data-axis="muscle" data-v="${m.key}">${m.label}</button>
           `).join("")}
         </div>
-        <div class="scale-note">${mDesc}</div>
       </div>
       <div class="field"><label>How lean</label>
         <div class="look-grid leans">
           ${LEAN_LEVELS.map(l=>`
-            <div class="look-opt ${state.leanKey===l.key?"active":""}" data-axis="lean" data-v="${l.key}">
-              ${bodySilhouetteSVG(68, l.abLevel)}
-              <div class="ln">${l.label}</div>
-            </div>
+            <button type="button" class="look-opt ${state.leanKey===l.key?"active":""}" data-axis="lean" data-v="${l.key}">${l.label}</button>
           `).join("")}
         </div>
-        <div class="scale-note">${lDesc.desc} (~${lDesc.bf}% body fat)</div>
       </div>
       <div class="look-preview">
-        ${bodySilhouetteSVG(MUSCLE_LEVELS.find(m=>m.key===state.muscleKey).shoulderW, LEAN_LEVELS.find(l=>l.key===state.leanKey).abLevel)}
-        <div>
-          <div class="lp-num num">${lb} lb</div>
-          <div class="lp-sub">at your height, for this look. Not photo analysis — this is the same FFMI-based math coaches use to reverse-engineer target weight from a physique goal.</div>
-        </div>
+        <div class="lp-num num">${lb} lb</div>
+        <div class="lp-sub">${mDesc.split(" — ")[0]}, ${lDesc.label.toLowerCase()} (~${lDesc.bf}% BF), at your height</div>
       </div>
     `
   };
@@ -2664,60 +2629,49 @@ function renderAll(){
 }
 
 /* ============================= RENDER: LIFE ============================= */
+function lifeRow(k, v){ return `<div class="row"><span class="k">${k}</span><span class="v" style="text-align:right; max-width:60%; font-weight:600;">${v}</span></div>`; }
+
 function renderLife(){
   const el = document.getElementById("view-life");
   el.innerHTML = `
     <div class="section-head"><h2 class="eyebrow">Shower &amp; Hair</h2></div>
     <div class="card">
-      <ul class="plain">
-        <li><strong>Shampoo 2–3x/week,</strong> not daily — it strips the natural oils that keep hair and scalp healthy. On off days, just rinse with water, especially after a sweaty session.</li>
-        <li><strong>Conditioner every wash,</strong> focused on mid-lengths to ends. Keep it off the roots or it'll weigh your hair down and look flat/greasy.</li>
-        <li><strong>Water temp:</strong> warm, not hot — hot water dries out both skin and hair over time.</li>
-        <li><strong>Post-workout:</strong> even on non-shampoo days, rinse hair and rinse/wipe down to clear sweat and salt before it sits for hours.</li>
-        <li><strong>Product pick:</strong> match shampoo to your hair — a moisturizing one if it's dry or curly, a clarifying one 1x/week if you're prone to oily scalp/product buildup.</li>
-      </ul>
+      ${lifeRow("Shampoo", "2–3x/week, rinse only between")}
+      ${lifeRow("Conditioner", "every wash, mid-lengths to ends")}
+      ${lifeRow("Water temp", "warm, not hot")}
+      ${lifeRow("Post-workout", "always rinse sweat out same day")}
     </div>
 
     <div class="section-head"><h2 class="eyebrow">Hairstyle</h2></div>
     <div class="card">
-      <ul class="plain">
-        <li><strong>Low-maintenance options that read "athletic":</strong> textured crop, buzz cut, or a tapered side part — all fast to style, all work well with gym/soccer schedules where hair gets sweaty often.</li>
-        <li><strong>If your hair has natural wave or curl,</strong> a slightly longer textured cut (curtain-adjacent) can work well — ask a barber what suits your texture rather than forcing a straight-hair style onto different hair.</li>
-        <li><strong>Cut every 4–6 weeks</strong> to keep the shape — the style degrades faster than people expect, especially short cuts.</li>
-        <li><strong>Bring reference photos to your barber</strong> (including the ones that inspired your physique goal, if they show a haircut you like) — showing beats describing.</li>
-      </ul>
+      ${lifeRow("Good default cuts", "textured crop, buzz, tapered side part")}
+      ${lifeRow("Cut frequency", "every 4–6 weeks")}
+      ${lifeRow("At the barber", "bring reference photos")}
     </div>
 
     <div class="section-head"><h2 class="eyebrow">Skin Basics</h2></div>
     <div class="card">
-      <ul class="plain">
-        <li><strong>Wash your face 2x/day</strong> (morning + before bed) with a gentle cleanser — more than that can irritate skin and cause more oil production, not less.</li>
-        <li><strong>Moisturize after washing,</strong> even if your skin feels oily — skipping it often makes oiliness worse.</li>
-        <li><strong>Sunscreen if you're outside training or playing soccer</strong> — SPF 30+, reapply if you're out for hours. This matters more than most guys think, both for skin health and for not aging your skin early.</li>
-        <li><strong>Shower soon after sweating heavily</strong> — sitting in sweat for hours is the biggest driver of body/back acne for lifters and athletes.</li>
-      </ul>
+      ${lifeRow("Face wash", "2x/day, gentle cleanser")}
+      ${lifeRow("Moisturizer", "after every wash")}
+      ${lifeRow("Sunscreen", "SPF 30+ outdoors/soccer days")}
+      ${lifeRow("After sweating", "shower same day — cuts body acne")}
     </div>
 
     <div class="section-head"><h2 class="eyebrow">Getting Back Into Soccer</h2></div>
     <div class="card">
-      <div class="tip" style="margin-bottom:10px;">Soccer is a great pairing with your physique goal — it builds the kind of functional, lean athleticism that a pure gym routine doesn't, and it's genuinely fun in a way the gym often isn't. Here's a simple 4-week path back in:</div>
-      <ul class="plain">
-        <li><strong>Week 1 — Touch:</strong> 15–20 min solo with a ball, 3–4x. Juggling, dribbling through cones/objects, passing against a wall. This rebuilds ball control fast without needing anyone else.</li>
-        <li><strong>Week 2 — Wind:</strong> add short interval runs (e.g. 30s hard / 90s walk × 8) twice this week — soccer conditioning is stop-start, very different from steady gym cardio, so this specifically rebuilds it.</li>
-        <li><strong>Week 3 — Play:</strong> find a small-sided pickup game or kick around with a friend at game intensity, but keep it short (30–40 min) so you're not sore for the gym split.</li>
-        <li><strong>Week 4 — Rejoin:</strong> look for a local pickup run, rec league, or open futsal night — search "[your city] pickup soccer" or apps like Popsa/Meetup often have local groups.</li>
-        <li><strong>Fit with your split:</strong> play/train soccer on a rest day or the same day as Legs if needed — avoid stacking it right before a heavy squat session.</li>
-      </ul>
+      ${lifeRow("Week 1", "solo ball work, 15–20 min x 3–4")}
+      ${lifeRow("Week 2", "add sprint intervals, 2x this week")}
+      ${lifeRow("Week 3", "pickup game or kickabout, 30–40 min")}
+      ${lifeRow("Week 4", "find a regular local pickup run")}
+      <div class="scale-note" style="margin-top:8px;">Slot it on a rest day or the same day as Legs — not right before a heavy squat session.</div>
     </div>
 
-    <div class="section-head"><h2 class="eyebrow">Other Sports Worth Trying</h2><span class="hint">for the athletic look</span></div>
+    <div class="section-head"><h2 class="eyebrow">Other Sports Worth Trying</h2></div>
     <div class="card">
-      <ul class="plain">
-        <li><strong>Basketball:</strong> similar stop-start conditioning to soccer, easy to find pickup games, builds vertical/explosiveness.</li>
-        <li><strong>Swimming:</strong> full-body conditioning with zero joint impact — great complement on a rest day.</li>
-        <li><strong>Rock climbing:</strong> builds the lean, wide-lat look directly, and grip/back strength that carries over to pulling lifts.</li>
-        <li><strong>Boxing or BJJ:</strong> brutal conditioning, builds core and rotational strength, and is its own confidence-building skill outside the gym.</li>
-      </ul>
+      ${lifeRow("Basketball", "explosiveness, easy pickup games")}
+      ${lifeRow("Swimming", "zero-impact full-body conditioning")}
+      ${lifeRow("Climbing", "lean wide-lat look, grip strength")}
+      ${lifeRow("Boxing / BJJ", "brutal conditioning, core strength")}
     </div>
   `;
 }
@@ -2763,33 +2717,24 @@ function renderObStep(){
     `;
   } else if(obStep===2){
     body.innerHTML = `
-      <div class="ob-note">Waist &amp; neck let IRONLOG estimate body fat with the U.S. Navy method — accurate within a couple percent, no fancy scale needed.</div>
       <div class="field-grid">
-        <div class="field"><label>Waist (in)</label><input type="number" step="0.1" id="obWaist" value="${obDraft.waistIn||''}"></div>
-        <div class="field"><label>Neck (in)</label><input type="number" step="0.1" id="obNeck" value="${obDraft.neckIn||''}"></div>
+        <div class="field"><label>Waist (in)</label><input type="number" step="0.1" id="obWaist" value="${obDraft.waistIn||''}" placeholder="at your belly button"></div>
+        <div class="field"><label>Neck (in)</label><input type="number" step="0.1" id="obNeck" value="${obDraft.neckIn||''}" placeholder="below your Adam's apple"></div>
       </div>
-      <ul class="plain">
-        <li><strong>Waist:</strong> around your belly button, tape flat, don't suck in or flex.</li>
-        <li><strong>Neck:</strong> just below your Adam's apple, tape tilted slightly downward in front.</li>
-        <li><strong>Timing:</strong> first thing in the morning, after the bathroom, before eating — that's when readings are most consistent day to day.</li>
-      </ul>
-      <div class="scale-note">Not sure right now? Leave blank and add it later from the Dashboard — the app just won't show a body-fat estimate until then.</div>
-      <div class="field" style="margin-top:4px;">
+      <div class="scale-note">Morning, before eating, gives the most consistent reading. Leave blank to skip for now.</div>
+      <div class="field" style="margin-top:10px;">
         <label>Before photo (optional)</label>
         <input type="file" accept="image/*" id="obBeforePhoto">
-        <div class="scale-note">This doesn't make the body-fat number more accurate — that still comes from the waist/neck measurement above, no app can reliably read body fat from a photo. What it does give you is a real "day one" to compare against later, tagged and saved only on your phone.</div>
       </div>
     `;
     document.getElementById("obBeforePhoto").onchange = (e)=>{ obBeforePhotoPending = e.target.files[0] || null; };
   } else if(obStep===3){
     const r = renderLookPicker(obLookState, ()=>{});
     body.innerHTML = `
-      <div class="ob-note">Pick the look you're going for — this sets a personalized goal weight and shapes the guidance in later steps. This isn't reading a photo pixel-by-pixel (no app does that reliably); it's the same FFMI-based math coaches use.</div>
       <div id="obLookPicker">${r.html}</div>
-      <div class="field" style="margin-top:4px;">
-        <label>Save your reference photo (optional)</label>
+      <div class="field" style="margin-top:10px;">
+        <label>Reference photo (optional)</label>
         <input type="file" accept="image/*" id="obGoalPhoto">
-        <div class="scale-note">Save your own copy of a photo that matches this look — it's tagged "Goal" and stays only on your phone, viewable anytime in the Photos tab next to your progress pics.</div>
       </div>
     `;
     wireLookPicker(document.getElementById("obLookPicker"), obLookState, ()=>{});
@@ -2801,7 +2746,6 @@ function renderObStep(){
     const goalLb = obDraft.goalWeightLb || lookLb;
     const why = explainPhaseChoice(tempBF, obDraft.startWeightLb, goalLb, obLookState);
     body.innerHTML = `
-      ${tempBF!=null? `<div class="ob-note">Estimated body fat: <strong>${tempBF.toFixed(1)}%</strong>. Suggested starting phase: <strong style="text-transform:capitalize">${rec}</strong>.</div>` : ``}
       <div class="tip">${why}</div>
       <div class="field"><label>Starting phase</label>
         <select id="obPhase">
@@ -2811,7 +2755,6 @@ function renderObStep(){
         </select>
       </div>
       <div class="field"><label>Goal weight (lb)</label><input type="number" step="0.1" id="obGoal" value="${goalLb}"></div>
-      <div class="scale-note">Pre-filled from the look you picked (${lookLb} lb) — edit it any time, and re-set it any time from the Dashboard. Your goal weight is a checkpoint, not a finish line.</div>
     `;
   }
 }
