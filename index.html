@@ -62,6 +62,7 @@
 
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
+  body.scroll-locked{position:fixed; left:0; right:0; overflow:hidden; width:100%;}
   body{
     background:var(--bg); color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -607,12 +608,30 @@ function toast(msg){
   clearTimeout(toast._t);
   toast._t = setTimeout(()=>t.classList.remove("show"), 1800);
 }
-function openModal(html, opts){
-  document.getElementById("modalRoot").innerHTML = html;
-  document.getElementById("modalRoot").classList.toggle("modal-full", !!(opts&&opts.full));
-  document.getElementById("modalVeil").classList.add("active");
+let _scrollLockY = 0;
+function lockBodyScroll(){
+  if(document.body.classList.contains("scroll-locked")) return;
+  _scrollLockY = window.scrollY;
+  document.body.classList.add("scroll-locked");
+  document.body.style.top = (-_scrollLockY) + "px";
 }
-function closeModal(){ stopBarcodeScan(); document.getElementById("modalVeil").classList.remove("active"); }
+function unlockBodyScroll(){
+  if(!document.body.classList.contains("scroll-locked")) return;
+  document.body.classList.remove("scroll-locked");
+  document.body.style.top = "";
+  window.scrollTo(0, _scrollLockY);
+}
+function openModal(html, opts){
+  const root = document.getElementById("modalRoot");
+  const preserveScroll = !!(opts && opts.preserveScroll);
+  const prevScrollTop = preserveScroll ? root.scrollTop : 0;
+  root.innerHTML = html;
+  root.classList.toggle("modal-full", !!(opts&&opts.full));
+  document.getElementById("modalVeil").classList.add("active");
+  lockBodyScroll();
+  if(preserveScroll) root.scrollTop = prevScrollTop;
+}
+function closeModal(){ stopBarcodeScan(); document.getElementById("modalVeil").classList.remove("active"); unlockBodyScroll(); }
 
 /* ---- Claude vision API (user's own key, direct from browser) ---- */
 const AI_MODEL = "claude-haiku-4-5-20251001";
@@ -1349,10 +1368,20 @@ function openWorkoutModal(dayKey){
   const day = SPLIT.find(d=>d.key===dayKey);
   const date = todayStr();
   let existing = STATE.workoutLog.find(s=>s.date===date && s.dayKey===dayKey);
-  const draft = existing ? JSON.parse(JSON.stringify(existing)) :
-    {date, dayKey, exercises: day.exercises.map(e=>({n:e.n, sets:[]}))};
+  const draftKey = "ironlog_wdraft_"+date+"_"+dayKey;
+  let recovered = null;
+  try{ recovered = JSON.parse(localStorage.getItem(draftKey)); }catch(e){}
+  const draft = recovered || (existing ? JSON.parse(JSON.stringify(existing)) :
+    {date, dayKey, exercises: day.exercises.map(e=>({n:e.n, sets:[]}))});
 
-  function renderBody(){
+  function persistDraft(){
+    try{ localStorage.setItem(draftKey, JSON.stringify(draft)); }catch(e){}
+  }
+  function clearDraft(){
+    try{ localStorage.removeItem(draftKey); }catch(e){}
+  }
+
+  function renderBody(preserveScroll){
     const html = `
       <div class="modal-head"><h3>${day.label} — ${fmtDate(date)}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
       <div class="modal-body">
@@ -1379,7 +1408,7 @@ function openWorkoutModal(dayKey){
         ${existing? `<button class="btn btn-block" id="wDelete" style="color:var(--danger)">Delete Session</button>`:``}
       </div>
     `;
-    openModal(html, {full:true});
+    openModal(html, {full:true, preserveScroll:!!preserveScroll});
     wireBody();
   }
 
@@ -1398,13 +1427,17 @@ function openWorkoutModal(dayKey){
   }
 
   function wireBody(){
+    document.querySelectorAll(".setW, .setR").forEach(input=>{
+      input.oninput = ()=>{ collectFromDOM(); persistDraft(); };
+    });
     document.querySelectorAll(".add-set").forEach(btn=>{
       btn.onclick = ()=>{
         collectFromDOM();
         const ei = +btn.dataset.ei;
         const last = draft.exercises[ei].sets[draft.exercises[ei].sets.length-1];
         draft.exercises[ei].sets.push({w: last?last.w:null, r: last?last.r:null});
-        renderBody();
+        persistDraft();
+        renderBody(true);
       };
     });
     document.querySelectorAll(".rm").forEach(btn=>{
@@ -1412,7 +1445,8 @@ function openWorkoutModal(dayKey){
         collectFromDOM();
         const ei = +btn.dataset.ei, si = +btn.dataset.si;
         draft.exercises[ei].sets.splice(si,1);
-        renderBody();
+        persistDraft();
+        renderBody(true);
       };
     });
     document.getElementById("wSave").onclick = ()=>{
@@ -1422,15 +1456,16 @@ function openWorkoutModal(dayKey){
       STATE.workoutLog = STATE.workoutLog.filter(s=>!(s.date===date && s.dayKey===dayKey));
       STATE.workoutLog.push(draft);
       STATE.workoutLog.sort((a,b)=>a.date.localeCompare(b.date));
-      saveState(); closeModal(); toast("Session saved"); renderAll();
+      saveState(); clearDraft(); closeModal(); toast("Session saved"); renderAll();
     };
     const delBtn = document.getElementById("wDelete");
     if(delBtn) delBtn.onclick = ()=>{
       STATE.workoutLog = STATE.workoutLog.filter(s=>!(s.date===date && s.dayKey===dayKey));
-      saveState(); closeModal(); toast("Session deleted"); renderAll();
+      saveState(); clearDraft(); closeModal(); toast("Session deleted"); renderAll();
     };
   }
 
+  if(recovered) toast("Recovered your unsaved sets");
   renderBody();
 }
 
@@ -1505,6 +1540,7 @@ async function renderPhotos(){
 function openPhotoShootModal(){
   let idx = 0;
   const date = todayStr();
+  const savedPhotos = [];
   function render(){
     const step = SHOOT_STEPS[idx];
     openModal(`
@@ -1527,15 +1563,48 @@ function openPhotoShootModal(){
         btn.disabled = true; btn.textContent = "Saving…";
         try{
           const dataURL = await resizeImage(f);
-          await addPhoto({id:uid(), date, tag:step.tag, angle:step.angle, dataURL});
+          const photo = {id:uid(), date, tag:step.tag, angle:step.angle, dataURL};
+          await addPhoto(photo);
+          savedPhotos.push(photo);
         }catch(e){ /* skip silently, move on */ }
       }
       advance();
     };
   }
+  function finish(){
+    const hasKey = !!(STATE.apiKey && STATE.apiKey.trim());
+    const primary = savedPhotos.find(p=>p.angle==="front" && p.tag==="relaxed") || savedPhotos[0];
+    if(!hasKey || !primary){
+      closeModal(); toast(savedPhotos.length? "Photo set saved" : "No photos saved"); renderPhotos();
+      return;
+    }
+    openModal(`
+      <div class="modal-head"><h3>Photo Set Saved</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <div class="modal-body">
+        <img src="${primary.dataURL}" style="width:100%; border-radius:12px;">
+        <button class="btn btn-accent btn-block" id="shootAnalyze">Analyze with AI</button>
+        <button class="btn btn-block" id="shootDone">Done</button>
+      </div>
+    `);
+    document.getElementById("shootDone").onclick = ()=>{ closeModal(); renderPhotos(); };
+    document.getElementById("shootAnalyze").onclick = async (e)=>{
+      const btn = e.target;
+      btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Analyzing…`;
+      const result = await analyzePhysiquePhoto(primary);
+      if(result.ok){
+        primary.analysis = result.analysis;
+        await addPhoto(primary);
+        toast("Analysis ready — check the Photos tab");
+        closeModal(); renderPhotos();
+      } else {
+        toast(result.message);
+        btn.disabled = false; btn.textContent = "Analyze with AI";
+      }
+    };
+  }
   function advance(){
     idx++;
-    if(idx >= SHOOT_STEPS.length){ closeModal(); toast("Photo set saved"); renderPhotos(); return; }
+    if(idx >= SHOOT_STEPS.length){ finish(); return; }
     render();
   }
   render();
@@ -1610,7 +1679,6 @@ function resizeImage(file, maxDim, quality){
 function openPhotoActionModal(id){
   const p = photoCache.find(x=>x.id===id);
   if(!p) return;
-  const hasKey = !!(STATE.apiKey && STATE.apiKey.trim());
   openModal(`
     <div class="modal-head"><h3>${fmtDateLong(p.date)} · ${p.angle? p.angle+" · ":""}${p.tag}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
     <div class="modal-body photo-viewer">
