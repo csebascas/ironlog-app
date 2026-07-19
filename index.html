@@ -81,7 +81,7 @@
   ::selection{background:var(--accent-soft);}
   a{color:var(--accent-strong);}
 
-  #app{max-width:560px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; position:relative;}
+  #app{max-width:560px; margin:0 auto; min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; position:relative;}
 
   /* ---------- top bar ---------- */
   .topbar{
@@ -310,6 +310,7 @@
     max-width:560px; margin:0 auto;
     background:var(--surface); border-top:1px solid var(--border);
     display:flex; padding:6px 4px calc(env(safe-area-inset-bottom) + 6px);
+    transform:translateZ(0); -webkit-transform:translateZ(0); will-change:transform;
   }
   nav.tabbar button{
     flex:1; background:none; border:none; cursor:pointer; color:var(--text-faint);
@@ -512,7 +513,8 @@ function defaultState(){
     sleepLog: [],    // {date, hours}
     theme: "auto",
     appLockHash: null,
-    apiKey: ""
+    apiKey: "",
+    lastFullAnalysis: null
   };
 }
 async function hashPin(pin){
@@ -1499,7 +1501,20 @@ async function renderPhotos(){
       <div class="btn-row" style="margin-top:8px;">
         <button class="btn btn-block" id="btnAddPhoto">+ Add Single Photo</button>
       </div>
-      <div class="tip" style="margin-top:10px;">For a written read on any photo, send it to Claude directly in a chat — that's free with your normal Claude usage. This tab stores and compares photos on-device; it doesn't analyze them itself.</div>
+    </div>
+
+    <div class="section-head"><h2 class="eyebrow">Where You're At</h2></div>
+    <div class="card">
+      ${STATE.lastFullAnalysis ? `
+        <div class="analysis-box">
+          <div class="analysis-head"><span>Full Check — ${fmtDate(STATE.lastFullAnalysis.date)}</span></div>
+          ${esc(STATE.lastFullAnalysis.text)}
+        </div>
+        <button class="btn btn-accent btn-block" id="btnFullAnalyze" style="margin-top:10px;">Re-run Full Check</button>
+      ` : `
+        <div class="tip">Looks at all your recent angles together, sanity-checks your tape-measurement body fat % against what it actually sees, and gives a direct cut/bulk/maintain call.</div>
+        <button class="btn btn-accent btn-block" id="btnFullAnalyze" style="margin-top:10px;">Run Full Physique Check</button>
+      `}
     </div>
 
     <div class="section-head"><h2 class="eyebrow">Compare</h2><span class="hint">tap two photos below</span></div>
@@ -1532,6 +1547,24 @@ async function renderPhotos(){
   `;
   document.getElementById("btnAddPhoto").onclick = openAddPhotoModal;
   document.getElementById("btnStartShoot").onclick = openPhotoShootModal;
+  const fullBtn = document.getElementById("btnFullAnalyze");
+  if(fullBtn) fullBtn.onclick = async ()=>{
+    const hasKey = !!(STATE.apiKey && STATE.apiKey.trim());
+    if(!hasKey){ toast("Add your API key in Settings first"); switchTab("settings"); return; }
+    fullBtn.disabled = true;
+    fullBtn.innerHTML = `<span class="spinner"></span> Analyzing…`;
+    const result = await analyzeFullPhysique();
+    if(result.ok){
+      STATE.lastFullAnalysis = result.analysis;
+      saveState();
+      toast("Full check ready");
+      renderPhotos();
+    } else {
+      toast(result.message);
+      fullBtn.disabled = false;
+      fullBtn.textContent = STATE.lastFullAnalysis ? "Re-run Full Check" : "Run Full Physique Check";
+    }
+  };
   el.querySelectorAll(".photo-thumb").forEach(thumb=>{
     thumb.onclick = ()=> openPhotoActionModal(thumb.dataset.id);
   });
@@ -1764,6 +1797,40 @@ Give a short, direct, honest physique read:
 
 Plain text, no markdown or headers, under 160 words, talk directly to the lifter, second person.`;
   const result = await callClaudeVision(apiKey, 400, textPrompt, images);
+  if(!result.ok) return result;
+  return {ok:true, analysis:{text:result.text, date: todayStr()}};
+}
+
+async function analyzeFullPhysique(){
+  const apiKey = (STATE.apiKey||"").trim();
+  if(!apiKey) return {ok:false, message:"Add your API key in Settings first"};
+  const latestByKey = {};
+  photoCache.forEach(ph=>{
+    if(ph.tag==="goal") return;
+    const k = (ph.angle||"front")+"_"+ph.tag;
+    if(!latestByKey[k] || ph.date > latestByKey[k].date) latestByKey[k] = ph;
+  });
+  const chosen = Object.values(latestByKey).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
+  if(!chosen.length) return {ok:false, message:"Add at least one progress photo first"};
+  const goal = photoCache.find(ph=>ph.tag==="goal");
+  const images = [];
+  if(goal) images.push({label:"Goal reference photo:", dataURL:goal.dataURL});
+  chosen.forEach(ph=>images.push({label:`Current — ${ph.angle||"front"}, ${ph.tag} (${fmtDate(ph.date)}):`, dataURL:ph.dataURL}));
+
+  const p = STATE.profile;
+  const bf = currentBF();
+  const weight = (latestWeight()||p.startWeightLb).toFixed(1);
+  const textPrompt = `Athlete: ${p.age}yo male, ${Math.floor(p.heightIn/12)}'${Math.round(p.heightIn%12)}", currently ${weight} lb, tape-measurement estimated body fat: ${bf!=null? bf.toFixed(1)+"%":"unknown"} (U.S. Navy method from waist/neck), currently on a ${p.phase} phase. Goal look: athletic, lean, visible muscle, not oversized — an "aesthetic athlete" physique.
+
+Attached are the athlete's most recent physique photos from multiple angles (labeled)${goal? ", plus their goal reference photo":""}. Look at all of them together and answer directly, in this order:
+
+1. Overall visual read: where the muscle is developed, where fat is sitting, current visual leanness level.
+2. Sanity-check the tape-measurement body fat estimate (${bf!=null? bf.toFixed(1)+"%":"not available"}) against what you actually see in the photos — does it look roughly consistent, or does the photo suggest notably higher or lower body fat than that number? Tape technique can be off, so this cross-check matters.
+3. Direct recommendation right now: cut, bulk, or maintain — and why, in one or two sentences.
+
+Plain text, no markdown, under 200 words, talk directly to them, second person, honest and direct, not softened.`;
+
+  const result = await callClaudeVision(apiKey, 500, textPrompt, images);
   if(!result.ok) return result;
   return {ok:true, analysis:{text:result.text, date: todayStr()}};
 }
